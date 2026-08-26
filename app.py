@@ -44,11 +44,10 @@ def send_telegram_alert(message):
         except Exception as e:
             st.sidebar.error(f"خطأ Telegram: {e}")
 
-# Safe Data Fetching Helper with Dynamic Period Setup
+# Data Fetcher with Dynamic Limits
 @st.cache_data(ttl=30)
 def fetch_data(symbol, interval):
     try:
-        # Dynamic Period based on Timeframe Limits in Yahoo Finance
         if interval in ["1m", "2m", "5m"]:
             period = "7d"
         elif interval in ["15m", "30m"]:
@@ -62,7 +61,6 @@ def fetch_data(symbol, interval):
         if df is None or df.empty:
             return pd.DataFrame()
         
-        # Handling yfinance MultiIndex columns safely
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
             
@@ -98,31 +96,29 @@ with tab1:
             shared_xaxes=True, 
             vertical_spacing=0.04, 
             row_heights=[0.6, 0.2, 0.2],
-            subplot_titles=(f"OHLC & Indicators ({selected_symbol})", "MACD Histogram", "RSI Momentum")
+            subplot_titles=(f"OHLC, EMA & VWAP ({selected_symbol})", "MACD Histogram", "RSI Momentum")
         )
         
-        # Main Candlestick Chart
-        fig.add_trace(go.Candlestick(
-            x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"
-        ), row=1, col=1)
+        # Candlesticks
+        fig.add_trace(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"), row=1, col=1)
         
+        # EMA & VWAP
         if 'ema' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['ema'], line=dict(color='#2962FF', width=1.5), name=f"EMA {ema_period}"), row=1, col=1)
+        if 'vwap' in df.columns:
+            fig.add_trace(go.Scatter(x=df.index, y=df['vwap'], line=dict(color='#E91E63', width=1.5, dash='dash'), name="VWAP"), row=1, col=1)
+            
+        # Bollinger Bands
         if 'upper_band' in df.columns and 'lower_band' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['upper_band'], line=dict(color='rgba(255,255,255,0.2)', width=1), name="Upper BB"), row=1, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['lower_band'], line=dict(color='rgba(255,255,255,0.2)', width=1), name="Lower BB"), row=1, col=1)
-        
-        # ATR Trailing Stop
-        if 'atr' in df.columns:
-            atr_stop = df['close'] - (df['atr'] * atr_multiplier)
-            fig.add_trace(go.Scatter(x=df.index, y=atr_stop, line=dict(color='#FF5252', width=1, dash='dot'), name="ATR Stop"), row=1, col=1)
         
         # Williams Fractals
         if 'fractal_high' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['fractal_high'], mode='markers', marker=dict(symbol='triangle-down', size=8, color='red'), name='Fractal High'), row=1, col=1)
             fig.add_trace(go.Scatter(x=df.index, y=df['fractal_low'], mode='markers', marker=dict(symbol='triangle-up', size=8, color='green'), name='Fractal Low'), row=1, col=1)
         
-        # MACD Histogram
+        # MACD
         if 'macd_hist' in df.columns:
             colors = ['#00E676' if val >= 0 else '#FF5252' for val in df['macd_hist'].fillna(0)]
             fig.add_trace(go.Bar(x=df.index, y=df['macd_hist'], marker_color=colors, name="MACD Hist"), row=2, col=1)
@@ -136,7 +132,7 @@ with tab1:
         fig.update_layout(template="plotly_dark", height=700, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.error("⚠️ لم يتم العثور على بيانات كافية لرسم الشارت. يرجى تغيير الأطار الزمني أو كتابة رمز آخر.")
+        st.error("⚠️ لم يتم العثور على بيانات كافية لرسم الشارت.")
 
 # --- TAB 2: AUTOMATED EXECUTION ---
 with tab2:
@@ -180,7 +176,7 @@ with tab2:
 
 # --- TAB 3: SCANNER ---
 with tab3:
-    st.header("🔍 الماسح اللحظي للأسواق")
+    st.header("🔍 الماسح اللحظي وتصدير البيانات")
     scanner_data = []
     for sym in active_symbols:
         temp = fetch_data(sym, timeframe)
@@ -191,18 +187,23 @@ with tab3:
             lm = temp['macd_hist'].iloc[-1] if 'macd_hist' in temp.columns else 0
             sig = "🟢 BUY" if lp > lem and lm > 0 else ("🔴 SELL" if lp < lem and lm < 0 else "⚪ NEUTRAL")
             scanner_data.append({"Symbol": sym, "Price": f"${lp:,.2f}", "RSI": f"{lr:.1f}", "Signal": sig})
+    
     if scanner_data:
-        st.dataframe(pd.DataFrame(scanner_data), use_container_width=True)
+        scan_df = pd.DataFrame(scanner_data)
+        st.dataframe(scan_df, use_container_width=True)
+        st.download_button("📥 تصدير نتائج الماسح إلى CSV", data=scan_df.to_csv(index=False), file_name="scanner_results.csv", mime="text/csv")
 
 # --- TAB 4: BACKTEST ---
 with tab4:
-    st.header("📊 محاكي الاستراتيجيات (Backtest)")
+    st.header("📊 محاكي الاستراتيجيات (Backtest Engine)")
     if not df.empty and 'ema' in df.columns and 'macd_hist' in df.columns:
         bt_df = df.copy()
         bt_df['signal'] = np.where((bt_df['close'] > bt_df['ema']) & (bt_df['macd_hist'] > 0), 1, -1)
         bt_df['returns'] = bt_df['close'].pct_change() * bt_df['signal'].shift(1)
         bt_df['cum_returns'] = (1 + bt_df['returns'].fillna(0)).cumprod()
+        
         st.line_chart(bt_df['cum_returns'])
+        st.download_button("📥 تصدير نتائج الباك تيست إلى CSV", data=bt_df.to_csv(), file_name=f"backtest_{selected_symbol}.csv", mime="text/csv")
 
 # --- TAB 5: RISK ENGINE ---
 with tab5:

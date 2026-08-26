@@ -5,24 +5,24 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     if df.empty:
         return df
 
-    # EMA
+    # Exponential Moving Average (EMA)
     df['ema'] = df['close'].ewm(span=ema_period, adjust=False).mean()
 
-    # RSI
+    # Relative Strength Index (RSI)
     delta = df['close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=rsi_period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=rsi_period).mean()
     rs = gain / (loss + 1e-9)
     df['rsi'] = 100 - (100 / (1 + rs))
 
-    # MACD 4C
+    # MACD 4C (Histogram)
     ema12 = df['close'].ewm(span=12, adjust=False).mean()
     ema26 = df['close'].ewm(span=26, adjust=False).mean()
     df['macd'] = ema12 - ema26
     df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
     df['macd_hist'] = df['macd'] - df['macd_signal']
 
-    # ATR
+    # Average True Range (ATR)
     high_low = df['high'] - df['low']
     high_close = np.abs(df['high'] - df['close'].shift())
     low_close = np.abs(df['low'] - df['close'].shift())
@@ -35,6 +35,10 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     df['std20'] = df['close'].rolling(20).std()
     df['upper_band'] = df['sma20'] + (df['std20'] * 2)
     df['lower_band'] = df['sma20'] - (df['std20'] * 2)
+
+    # Volume Weighted Average Price (VWAP)
+    typical_price = (df['high'] + df['low'] + df['close']) / 3
+    df['vwap'] = (typical_price * df['volume']).cumsum() / (df['volume'].cumsum() + 1e-9)
 
     # Williams Fractals
     df['fractal_high'] = np.nan
