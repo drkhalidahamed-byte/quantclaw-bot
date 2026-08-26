@@ -44,11 +44,21 @@ def send_telegram_alert(message):
         except Exception as e:
             st.sidebar.error(f"خطأ Telegram: {e}")
 
-# Safe Data Fetching Helper
+# Safe Data Fetching Helper with Dynamic Period Setup
 @st.cache_data(ttl=30)
 def fetch_data(symbol, interval):
     try:
-        df = yf.download(symbol, period="6mo", interval=interval, progress=False)
+        # Dynamic Period based on Timeframe Limits in Yahoo Finance
+        if interval in ["1m", "2m", "5m"]:
+            period = "7d"
+        elif interval in ["15m", "30m"]:
+            period = "1mo"
+        elif interval in ["1h", "60m"]:
+            period = "3mo"
+        else:
+            period = "1y"
+            
+        df = yf.download(symbol, period=period, interval=interval, progress=False)
         if df is None or df.empty:
             return pd.DataFrame()
         
@@ -58,7 +68,6 @@ def fetch_data(symbol, interval):
             
         df.columns = [str(c).lower() for c in df.columns]
         
-        # Ensure required standard columns exist
         required_cols = ['open', 'high', 'low', 'close', 'volume']
         if not all(col in df.columns for col in required_cols):
             return pd.DataFrame()
