@@ -5,24 +5,24 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     if df.empty:
         return df
 
-    # Exponential Moving Average
+    # EMA
     df['ema'] = df['close'].ewm(span=ema_period, adjust=False).mean()
 
-    # Relative Strength Index
+    # RSI
     delta = df['close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=rsi_period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=rsi_period).mean()
     rs = gain / (loss + 1e-9)
     df['rsi'] = 100 - (100 / (1 + rs))
 
-    # MACD Line & Histogram
+    # MACD 4C
     ema12 = df['close'].ewm(span=12, adjust=False).mean()
     ema26 = df['close'].ewm(span=26, adjust=False).mean()
     df['macd'] = ema12 - ema26
     df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
     df['macd_hist'] = df['macd'] - df['macd_signal']
 
-    # Average True Range
+    # ATR
     high_low = df['high'] - df['low']
     high_close = np.abs(df['high'] - df['close'].shift())
     low_close = np.abs(df['low'] - df['close'].shift())
@@ -35,6 +35,23 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     df['std20'] = df['close'].rolling(20).std()
     df['upper_band'] = df['sma20'] + (df['std20'] * 2)
     df['lower_band'] = df['sma20'] - (df['std20'] * 2)
+
+    # Williams Fractals
+    df['fractal_high'] = np.nan
+    df['fractal_low'] = np.nan
+    
+    for i in range(2, len(df) - 2):
+        if (df['high'].iloc[i] > df['high'].iloc[i-1] and 
+            df['high'].iloc[i] > df['high'].iloc[i-2] and 
+            df['high'].iloc[i] > df['high'].iloc[i+1] and 
+            df['high'].iloc[i] > df['high'].iloc[i+2]):
+            df['fractal_high'].iloc[i] = df['high'].iloc[i]
+            
+        if (df['low'].iloc[i] < df['low'].iloc[i-1] and 
+            df['low'].iloc[i] < df['low'].iloc[i-2] and 
+            df['low'].iloc[i] < df['low'].iloc[i+1] and 
+            df['low'].iloc[i] < df['low'].iloc[i+2]):
+            df['fractal_low'].iloc[i] = df['low'].iloc[i]
 
     return df
 
