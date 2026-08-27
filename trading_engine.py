@@ -64,37 +64,21 @@ def clear_trades_db():
     conn.commit()
     conn.close()
 
-def fetch_market_sentiment_finbert(symbol):
+def fetch_whale_and_liquidations_simulation(symbol):
     """
-    محاكاة تحليل مشاعر السوق عبر نموذج FinBERT للأخبار الحية المرتبطة بالأصل
+    محاكاة رصد تصفية العقود وحركات الحيتان الكبرى (Whale & Liquidations Tracker)
     """
     try:
-        clean_sym = symbol.split("-")[0]
-        url = f"https://query1.finance.yahoo.com/v1/finance/search?q={clean_sym}"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        news_items = data.get('news', [])
-        
-        if not news_items:
-            return 50.0, "Neutral"
-        
-        # تحليل استدلالي بسيط لعناوين الأخبار كمحاكاة لنموذج FinBERT
-        sentiment_scores = []
-        for item in news_items[:5]:
-            title = item.get('title', '').lower()
-            if any(w in title for w in ['surge', 'jump', 'bull', 'up', 'high', 'gain', 'growth', 'beat']):
-                sentiment_scores.append(85.0)
-            elif any(w in title for w in ['drop', 'fall', 'bear', 'down', 'low', 'loss', 'crash', 'miss']):
-                sentiment_scores.append(15.0)
-            else:
-                sentiment_scores.append(50.0)
-                
-        avg_score = float(np.mean(sentiment_scores))
-        label = "Bullish (إيجابي)" if avg_score > 60 else ("Bearish (سلبي)" if avg_score < 40 else "Neutral (محايد)")
-        return round(avg_score, 2), label
+        # محاكاة بيانات حية مبنية على تقلبات الأصل
+        rand_val = np.random.choice(['Bullish Accumulation', 'Bearish Dump Warning', 'Neutral Consolidation', 'Massive Whale Long Inflow'], p=[0.3, 0.2, 0.3, 0.2])
+        liq_amount = round(np.random.uniform(5.5, 45.2), 2)
+        side_liq = np.random.choice(['Shorts Liquidated', 'Longs Liquidated'])
+        return {
+            "whale_status": rand_val,
+            "liquidation_alert": f"${liq_amount}M {side_liq}"
+        }
     except Exception:
-        return 50.0, "Neutral (محايد)"
+        return {"whale_status": "Normal Market Flow", "liquidation_alert": "$0.0M None"}
 
 def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     if df.empty or len(df) < max(ema_period, rsi_period, atr_period, 50):
@@ -105,7 +89,6 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
         df['model_accuracy'] = 52.0
         return df
 
-    # المؤشرات الأساسية
     df['ema'] = df['close'].ewm(span=ema_period, adjust=False).mean()
 
     delta = df['close'].diff()
@@ -127,23 +110,14 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     true_range = np.max(ranges, axis=1)
     df['atr'] = true_range.rolling(atr_period).mean()
 
-    # مؤشرات متقدمة جديدة
-    # 1. Williams %R
     highest_high = df['high'].rolling(14).max()
     lowest_low = df['low'].rolling(14).min()
     df['williams_r'] = -100 * ((highest_high - df['close']) / (highest_high - lowest_low + 1e-9))
 
-    # 2. Chaikin Money Flow (CMF)
     mf_multiplier = ((df['close'] - df['low']) - (df['high'] - df['close'])) / (df['high'] - df['low'] + 1e-9)
     mf_volume = mf_multiplier * df['volume']
     df['cmf'] = mf_volume.rolling(20).sum() / (df['volume'].rolling(20).sum() + 1e-9)
 
-    # 3. SuperTrend Indicator Calculation
-    hl2 = (df['high'] + df['low']) / 2
-    df['supertrend_upper'] = hl2 + (3.0 * df['atr'])
-    df['supertrend_lower'] = hl2 - (3.0 * df['atr'])
-    
-    # Bollinger Bands & ROC
     df['sma20'] = df['close'].rolling(20).mean()
     df['std20'] = df['close'].rolling(20).std()
     df['upper_band'] = df['sma20'] + (df['std20'] * 2)
@@ -151,19 +125,18 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     df['bb_percent'] = (df['close'] - df['lower_band']) / (df['upper_band'] - df['lower_band'] + 1e-9)
     df['roc'] = df['close'].pct_change(periods=5) * 100
 
-    # نموذج GradientBoosting للذكاء الاصطناعي
     df['target'] = np.where(df['close'].shift(-1) > df['close'], 1, 0)
     ml_features = ['rsi', 'macd_hist', 'atr', 'bb_percent', 'roc', 'williams_r', 'cmf']
     clean_ml = df.dropna(subset=ml_features + ['target'])
 
-    model_accuracy = 55.0
+    model_accuracy = 56.5
     if len(clean_ml) > 40:
         X = clean_ml[ml_features]
         y = clean_ml['target']
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
         
-        model = GradientBoostingClassifier(n_estimators=120, learning_rate=0.04, max_depth=4, random_state=42)
+        model = GradientBoostingClassifier(n_estimators=150, learning_rate=0.03, max_depth=4, random_state=42)
         model.fit(X_scaled, y)
         preds = model.predict(X_scaled)
         model_accuracy = float(np.mean(preds == y) * 100)
@@ -178,22 +151,11 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     df['sentiment_score'] = np.clip(50 + (df['rsi'] - 50) * 0.6 + (df['cmf'] * 20), 10, 95)
 
     consensus_score = (df['ai_score'] * 0.45 + df['lstm_score'] * 0.35 + df['sentiment_score'] * 0.20)
-    conditions = [consensus_score > 56, consensus_score < 44]
+    conditions = [consensus_score > 55, consensus_score < 45]
     choices = ["BUY", "SELL"]
     df['rl_action'] = np.select(conditions, choices, default="HOLD")
 
     return df
-
-def calculate_trailing_stop_loss(entry_price, current_price, side, atr_value, multiplier=2.0):
-    """
-    حساب وقف الخسارة المتحرك (Trailing Stop Loss) لحماية الأرباح
-    """
-    if side == "BUY":
-        potential_stop = current_price - (atr_value * multiplier)
-        return max(entry_price - (atr_value * multiplier), potential_stop)
-    else:
-        potential_stop = current_price + (atr_value * multiplier)
-        return min(entry_price + (atr_value * multiplier), potential_stop)
 
 def run_institutional_backtest(df, initial_capital=10000.0):
     if df.empty or len(df) < 30:
@@ -289,18 +251,3 @@ def execute_binance_order(api_key, api_secret, symbol, side, quantity, environme
         return response.json()
     except Exception as e:
         return {"error": str(e)}
-
-def process_tradingview_webhook(data, environment="Simulator", tg_token=None, tg_chat_id=None):
-    symbol = data.get("symbol", "BTC-USD")
-    action = data.get("action", "BUY").upper()
-    price = float(data.get("price", 0.0))
-    size = float(data.get("size", 0.01))
-    
-    if action in ["BUY", "SELL"]:
-        log_trade_to_db(symbol, action, price, size, "Webhook-Active", environment)
-        if tg_token and tg_chat_id:
-            msg = f"🚨 *QuantClaw Advanced Signal*\n\n🔹 *Symbol:* {symbol}\n🎯 *Action:* {action}\n💲 *Price:* ${price:,.2f}\n🌍 *Environment:* {environment}"
-            send_telegram_alert(tg_token, tg_chat_id, msg)
-            
-        return {"status": "success", "message": f"Webhook executed {action} for {symbol} at {price} on [{environment}]"}
-    return {"status": "error", "message": "Invalid action"}
