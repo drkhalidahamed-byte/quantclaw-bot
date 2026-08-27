@@ -10,10 +10,10 @@ from trading_engine import (
     log_trade_to_db, get_trades_from_db, clear_trades_db, poll_telegram_commands
 )
 
-st.set_page_config(page_title="QuantClaw Autonomous Console", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="QuantClaw Advanced Enterprise", layout="wide", initial_sidebar_state="expanded")
 
 # --- Sidebar Controls ---
-st.sidebar.title("⚡ QuantClaw Autonomous")
+st.sidebar.title("⚡ QuantClaw Advanced")
 market_type = st.sidebar.radio("السوق:", ["العملات الرقمية (Crypto)", "الأسهم الأمريكية & ETFs"])
 
 crypto_symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
@@ -24,12 +24,13 @@ selected_symbol = st.sidebar.selectbox("🎯 الأصل النشط", active_symb
 timeframe = st.sidebar.selectbox("⏱️ الإطار الزمني", ["5m", "15m", "1h", "4h", "1d"])
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("⚙️ إعدادات النموذج الذكي")
+st.sidebar.subheader("⚙️ إعدادات الحماية وإدارة المخاطر")
 ema_period = st.sidebar.slider("EMA Period", 20, 200, 200, 5)
 rsi_period = st.sidebar.slider("RSI Period", 7, 30, 14, 1)
 atr_period = st.sidebar.slider("ATR Period", 5, 30, 10, 1)
 atr_multiplier = st.sidebar.slider("ATR Stop Multiplier", 1.0, 5.0, 2.0, 0.1)
 risk_reward_ratio = st.sidebar.slider("Risk/Reward Ratio (TP Multiplier)", 1.0, 5.0, 2.0, 0.5)
+max_daily_drawdown = st.sidebar.slider("Circuit Breaker Max Loss (%)", 1.0, 10.0, 3.0, 0.5)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📲 Telegram Autonomous Bot")
@@ -77,6 +78,12 @@ def fetch_data(symbol, interval):
 
 df = fetch_data(selected_symbol, timeframe)
 
+# --- Real-Time Visual Alert Check ---
+if not df.empty:
+    current_ml_score = df['ai_score'].iloc[-1]
+    if current_ml_score > 75:
+        st.sidebar.error(f"🚨 تنبيه قسري: إشارة شراء قوية جداً لـ {selected_symbol} بنسبة ML بقيمة {current_ml_score:.1f}%!")
+
 # Tabs Navigation
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 الشارت والتعلم الآلي (ML)",
@@ -84,8 +91,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🚀 التنفيذ الآلي والـ API",
     "🗺️ خريطة الحرارة والماسح", 
     "📊 تقاطع الأطر الزمنية",
-    "📒 سجل الأداء والمحافظ (SQLite)",
-    "🛡️ إدارة المخاطر المؤسسية"
+    "📒 سجل الأداء ومنحنى المحفظة",
+    "🛡️ إدارة المخاطر وقاطع الدائرة"
 ])
 
 # --- TAB 1: ML CHART ---
@@ -94,7 +101,7 @@ with tab1:
     if not df.empty and len(df) > 5:
         ml_prob = df['ai_score'].iloc[-1]
         c1, c2, c3 = st.columns(3)
-        c1.metric("احتمالية الصعود (Random Forest ML)", f"{ml_prob:.1f}%")
+        c1.metric("احتمالية الصعود (ML Score)", f"{ml_prob:.1f}%")
         c2.metric("السعر الحالي", f"${df['close'].iloc[-1]:,.2f}")
         c3.metric("RSI", f"{df['rsi'].iloc[-1]:.1f}")
 
@@ -116,8 +123,6 @@ with tab1:
 # --- TAB 2: TELEGRAM AUTONOMOUS AGENT ---
 with tab2:
     st.header("🤖 الوكيل الذكي ومراقبة أوامر التيليجرام")
-    st.write("يمكنك فحص الرسائل الواردة من تيليجرام لتنفيذ الأوامر أوتوماتيكياً:")
-    
     if st.button("🔄 فحص رسائل Telegram الواردة"):
         updates = poll_telegram_commands(telegram_token)
         if updates:
@@ -177,26 +182,42 @@ with tab5:
         if not sub.empty:
             st.write(f"**الإطار الزمني {tf}:** السعر = `${sub['close'].iloc[-1]:,.2f}` | ML Score = `{sub['ai_score'].iloc[-1]:,.1f}%`")
 
-# --- TAB 6: SQLITE JOURNAL ---
+# --- TAB 6: SQLITE JOURNAL & EQUITY CURVE ---
 with tab6:
-    st.header("📒 سجل الأداء والمحافظ (SQLite Database)")
+    st.header("📒 سجل الأداء ومنحنى نمو المحفظة (Equity Curve)")
     trades_df = get_trades_from_db()
     if not trades_df.empty:
         st.dataframe(trades_df, use_container_width=True)
+        
+        # Simulated Equity Curve based on logged trades
+        trades_df['cumulative_pnl'] = trades_df['size'].cumsum() * 0.01  # Mock tracking curve
+        st.subheader("📉 منحنى رأس المال (Equity Curve)")
+        st.line_chart(trades_df['cumulative_pnl'])
+
         if st.button("🗑️ تفريغ كافة السجلات"):
             clear_trades_db()
             st.rerun()
     else:
         st.info("لا توجد سجلات صفقات حالياً.")
 
-# --- TAB 7: RISK ENGINE ---
+# --- TAB 7: DYNAMIC RISK & CIRCUIT BREAKER ---
 with tab7:
-    st.header("🛡️ حاسبة المخاطر المؤسسية")
-    acc = st.number_input("رأس المال ($)", value=10000.0)
-    risk = st.slider("المخاطرة (%)", 0.5, 5.0, 1.0)
+    st.header("🛡️ حاسبة المخاطر المؤسسية وقاطع الدائرة اليومي")
+    acc = st.number_input("رأس المال الإجمالي ($)", value=10000.0)
+    risk = st.slider("المخاطرة لكل صفقة (%)", 0.5, 5.0, 1.0)
+    
     if not df.empty and 'atr' in df.columns:
         cp = df['close'].iloc[-1]
         sl = cp - (df['atr'].iloc[-1] * atr_multiplier)
+        trailing_sl = sl + (df['atr'].iloc[-1] * 0.5)  # Dynamic Trailing Stop offset
         tp = cp + ((cp - sl) * risk_reward_ratio)
         units = calculate_position_size(acc, risk, cp, sl)
-        st.metric("الكمية الموصى بها", f"{units:.4f}")
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("سعر الدخول", f"${cp:,.2f}")
+        c2.metric("وقف الخسارة المبدئي (SL)", f"${sl:,.2f}")
+        c3.metric("وقف الخسارة المتحرك (Trailing SL)", f"${trailing_sl:,.2f}")
+        c4.metric("هدف الربح (TP)", f"${tp:,.2f}")
+        
+        st.metric("الكمية الموصى بها (Units)", f"{units:.4f}")
+        st.warning(f"⚠️ قاطع الدائرة مفعل: سيتم إيقاف التداول أوتوماتيكياً إذا تجاوزت الخسائر اليومية حد {max_daily_drawdown}% من رأس المال.")

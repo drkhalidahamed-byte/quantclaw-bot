@@ -54,7 +54,6 @@ def clear_trades_db():
     conn.commit()
     conn.close()
 
-# --- Advanced ML Indicators & Random Forest Predictor ---
 def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     if df.empty or len(df) < max(ema_period, rsi_period, atr_period, 50):
         df['ai_score'] = 50.0
@@ -89,7 +88,6 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     typical_price = (df['high'] + df['low'] + df['close']) / 3
     df['vwap'] = (typical_price * df['volume']).cumsum() / (df['volume'].cumsum() + 1e-9)
 
-    # Scikit-Learn Machine Learning Model Training (Random Forest)
     df['target'] = np.where(df['close'].shift(-1) > df['close'], 1, 0)
     ml_features = ['rsi', 'macd_hist', 'atr']
     clean_ml = df.dropna(subset=ml_features + ['target'])
@@ -99,11 +97,8 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
         y = clean_ml['target']
         model = RandomForestClassifier(n_estimators=50, random_state=42)
         model.fit(X, y)
-        
-        # Predict probability for the whole dataset
         all_X = df[ml_features].fillna(0)
-        probs = model.predict_proba(all_X)[:, 1] * 100
-        df['ai_score'] = probs
+        df['ai_score'] = model.predict_proba(all_X)[:, 1] * 100
     else:
         df['ai_score'] = 50.0
 
