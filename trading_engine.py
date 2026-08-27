@@ -55,7 +55,6 @@ def clear_trades_db():
     conn.commit()
     conn.close()
 
-# --- Advanced Institutional Quantitative Feature Engineering & Backtesting Engine ---
 def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     if df.empty or len(df) < max(ema_period, rsi_period, atr_period, 50):
         df['ai_score'] = 50.0
@@ -91,10 +90,8 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     df['upper_band'] = df['sma20'] + (df['std20'] * 2)
     df['lower_band'] = df['sma20'] - (df['std20'] * 2)
     df['bb_percent'] = (df['close'] - df['lower_band']) / (df['upper_band'] - df['lower_band'] + 1e-9)
-
     df['roc'] = df['close'].pct_change(periods=5) * 100
 
-    # ML Classifier Engine
     df['target'] = np.where(df['close'].shift(-1) > df['close'], 1, 0)
     ml_features = ['rsi', 'macd_hist', 'atr', 'bb_percent', 'roc']
     clean_ml = df.dropna(subset=ml_features + ['target'])
@@ -126,7 +123,6 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     return df
 
 def run_institutional_backtest(df, initial_capital=10000.0):
-    """محرك اختبار عكسي كامل ومتقدم يحاكي أداء الصناديق الكمية"""
     if df.empty or len(df) < 30:
         return {"sharpe": 0.0, "sortino": 0.0, "max_dd": 0.0, "profit_factor": 1.0, "win_rate": 0.0, "equity_curve": []}
 
@@ -144,32 +140,25 @@ def run_institutional_backtest(df, initial_capital=10000.0):
             position = 1
             entry_p = price
         elif position == 1 and (action == "SELL" or i == len(df) - 1):
-            pnl = (price - entry_p) / entry_p * capital * 0.999  # رسوم تداول تقريبية 0.1%
+            pnl = (price - entry_p) / entry_p * capital * 0.999
             capital += pnl
             trades_pnl.append(pnl)
             position = 0
         equity_curve.append(capital)
 
     returns = pd.Series(equity_curve).pct_change().dropna()
-    
-    # Sharpe Ratio (معدل خالي من المخاطر نفترض أنه 0 للصساطة)
     sharpe = float((returns.mean() / (returns.std() + 1e-9)) * np.sqrt(252)) if len(returns) > 1 else 0.0
-    
-    # Sortino Ratio
     negative_returns = returns[returns < 0]
     sortino = float((returns.mean() / (negative_returns.std() + 1e-9)) * np.sqrt(252)) if len(negative_returns) > 1 else 0.0
 
-    # Max Drawdown
     eq_series = pd.Series(equity_curve)
     rolling_max = eq_series.cummax()
     drawdown = (eq_series - rolling_max) / rolling_max
     max_dd = float(drawdown.min() * 100)
 
-    # Profit Factor
     wins = sum([p for p in trades_pnl if p > 0])
     losses = abs(sum([p for p in trades_pnl if p < 0]))
     profit_factor = float(wins / (losses + 1e-9)) if losses > 0 else (2.0 if wins > 0 else 1.0)
-    
     win_rate = float(len([p for p in trades_pnl if p > 0]) / len(trades_pnl) * 100) if trades_pnl else 0.0
 
     return {

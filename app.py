@@ -12,8 +12,7 @@ from trading_engine import (
 
 st.set_page_config(page_title="QuantClaw Ultimate AI Enterprise", layout="wide", initial_sidebar_state="expanded")
 
-# --- Sidebar Navigation & Controls ---
-st.sidebar.title("⚡ QuantClaw Institutional")
+st.sidebar.title("⚡ QuantClaw Autonomous")
 market_type = st.sidebar.radio("السوق:", ["العملات الرقمية (Crypto)", "الأسهم الأمريكية & ETFs"])
 
 crypto_symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
@@ -31,8 +30,8 @@ navigation_section = st.sidebar.radio(
         "📈 1. الشارت والمؤشرات الفنية",
         "🧠 2. منظومة الذكاء الاصطناعي (AI Models)",
         "🧪 3. محرك الاختبار العكسي (Backtest)",
-        "🤖 4. أوامر ووكيل Telegram",
-        "🚀 5. التنفيذ الآلي والـ API",
+        "🤖 4. التداول الآلي والوكيل الذكي",
+        "🚀 5. تنفيذ الـ API اليدوي",
         "🗺️ 6. خريطة الحرارة والماسح",
         "📊 7. تقاطع الأطر الزمنية",
         "📒 8. سجل الأداء ومنحنى المحفظة",
@@ -41,7 +40,7 @@ navigation_section = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("⚙️ إعدادات النماذج والذكاء الاصطناعي")
+st.sidebar.subheader("⚙️ إعدادات النماذج وإدارة المخاطر")
 ema_period = st.sidebar.slider("EMA Period", 20, 200, 200, 5)
 rsi_period = st.sidebar.slider("RSI Period", 7, 30, 14, 1)
 atr_period = st.sidebar.slider("ATR Period", 5, 30, 10, 1)
@@ -129,13 +128,12 @@ elif navigation_section.startswith("🧠"):
         c3.metric("مؤشر المشاعر المحسّن (FinBERT)", f"{sent_s:.1f}%")
         c4.metric("دقة النماذج التاريخية (Backtest)", f"{acc:.1f}%")
 
-        st.success(f"🤖 **القرار الموحد لشبكة الذكاء الاصطناعي:** بناءً على الميزات الهندسية المتقدمة، قرار التداول الموصى به لـ {selected_symbol} هو **{rl_act}**.")
+        st.success(f"🤖 **القرار الموحد لشبكة الذكاء الاصطناعي:** بناءً على النماذج، القرار الموصى به لـ {selected_symbol} هو **{rl_act}**.")
 
 elif navigation_section.startswith("🧪"):
     st.header(f"🧪 محرك الاختبار العكسي المؤسسي (Institutional Backtest) - {selected_symbol}")
     if not df.empty:
         bt_results = run_institutional_backtest(df, initial_capital)
-        
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("معدل شارب (Sharpe)", bt_results["sharpe"])
         m2.metric("معدل سورتينو (Sortino)", bt_results["sortino"])
@@ -145,26 +143,51 @@ elif navigation_section.startswith("🧪"):
 
         st.subheader("📈 منحنى النمو الرأسمالي للاستراتيجية (Equity Curve)")
         st.line_chart(bt_results["equity_curve"])
-        st.info("💡 تم حساب هذه المعايير بناءً على محاكاة تنفيذ صفقات النموذج الآلي على التاريخ المتاح للأصل.")
 
 elif navigation_section.startswith("🤖"):
-    st.header("🤖 الوكيل الذكي ومراقبة أوامر التيليجرام")
-    if st.button("🔄 فحص رسائل Telegram الواردة"):
-        updates = poll_telegram_commands(telegram_token)
-        if updates:
-            st.success(f"تم رصد {len(updates)} رسالة جديدة!")
-        else:
-            st.info("لا توجد رسائل جديدة معلقة.")
+    st.header("🤖 التداول الآلي المرتبط بالذكاء الاصطناعي وإدارة المخاطر")
+    st.info("💡 يقوم هذا القسم بربط قرار الذكاء الاصطناعي، حاسبة المخاطر (ATR)، وسجلات المحفظة في دورة تداول أوتوماتيكية بالكامل.")
 
-    if st.button("📤 إرسال تقرير حالة الأصول الفوري للتيليجرام"):
-        if not df.empty:
-            p_now = df['close'].iloc[-1]
-            report = f"📊 *تقرير QuantClaw المؤسسي*\n- الأصل: {selected_symbol}\n- السعر: ${p_now:,.2f}\n- قرار AI: {df['rl_action'].iloc[-1]}"
-            send_telegram_alert(report)
-            st.success("تم إرسال التقرير بنجاح إلى التيليجرام!")
+    c_api1, c_api2 = st.columns(2)
+    with c_api1:
+        auto_api_key = st.text_input("Binance API Key", type="password")
+    with c_api2:
+        auto_api_secret = st.text_input("Binance API Secret", type="password")
+
+    if not df.empty:
+        current_price = df['close'].iloc[-1]
+        current_action = df['rl_action'].iloc[-1]
+        current_atr = df['atr'].iloc[-1] if 'atr' in df.columns else 1.0
+        
+        st.write(f"**الأصل المحدد:** {selected_symbol} | **السعر الحالي:** `${current_price:,.2f}`")
+        st.write(f"**قرار الذكاء الاصطناعي المباشر:** `{current_action}`")
+
+        if st.button("🚀 تشغيل حلقة التنفيذ الآلي الآن (Execute AI Decision)"):
+            if current_action == "HOLD":
+                st.warning("⚠️ قرار الذكاء الاصطناعي الحالي هو (HOLD). لا توجد إشارة دخول جديدة.")
+            else:
+                # حساب حجم الصفقة أوتوماتيكياً عبر حاسبة المخاطر
+                stop_loss = current_price - (current_atr * atr_multiplier) if current_action == "BUY" else current_price + (current_atr * atr_multiplier)
+                calc_size = calculate_position_size(initial_capital, 1.0, current_price, stop_loss)
+                
+                st.success(f"✅ تم تطبيق قواعد إدارة المخاطر: كمية الصفقة الموصى بها = `{calc_size:.4f}` | وقف الخسارة المحسوب = `${stop_loss:,.2f}`")
+
+                # تسجيل الصفقة محلياً
+                log_trade_to_db(selected_symbol, current_action, current_price, calc_size, "Active")
+                
+                # إرسال تنبيه Telegram أوتوماتيكي
+                alert_text = f"🤖 *تنفيذ صفقة تداول آلي*\n- الأصل: {selected_symbol}\n- القرار: {current_action}\n- السعر: ${current_price:,.2f}\n- الكمية: {calc_size:.4f}"
+                send_telegram_alert(alert_text)
+
+                # محاولة التنفيذ عبر Binance API إذا توفرت المفاتيح
+                if auto_api_key and auto_api_secret:
+                    res = execute_binance_order(auto_api_key, auto_api_secret, selected_symbol, current_action, calc_size, testnet=True)
+                    st.json(res)
+                else:
+                    st.warning("⚠️ لم يتم إدخال مفاتيح Binance API، تم تسجيل الصفقة محلياً وفي سجلات التيليجرام فقط.")
 
 elif navigation_section.startswith("🚀"):
-    st.header("🚀 التنفيذ الآلي والربط الحقيقي (API)")
+    st.header("🚀 التنفيذ اليدوي السريع (API)")
     c_e1, c_e2 = st.columns(2)
     with c_e1:
         api_k = st.text_input("API Key", type="password")
@@ -173,7 +196,7 @@ elif navigation_section.startswith("🚀"):
         amt = st.number_input("مبلغ الصفقة ($)", value=100.0)
         if not df.empty:
             lp = df['close'].iloc[-1]
-            if st.button("🛒 تنفيذ شراء وتسجيل في SQLite"):
+            if st.button("🛒 تنفيذ شراء فوري"):
                 log_trade_to_db(selected_symbol, "BUY", lp, amt, "Active")
                 st.success("تم تسجيل الصفقة بنجاح!")
 
