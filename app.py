@@ -134,6 +134,9 @@ if navigation_section.startswith("📈"):
         fig.add_trace(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"), row=1, col=1)
         if 'ema' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['ema'], line=dict(color='#00e676', width=2), name=f"EMA {ema_period}"), row=1, col=1)
+        if 'bb_upper' in df.columns:
+            fig.add_trace(go.Scatter(x=df.index, y=df['bb_upper'], line=dict(color='gray', width=1, dash='dash'), name="BB Upper"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df.index, y=df['bb_lower'], line=dict(color='gray', width=1, dash='dash'), name="BB Lower", fill='tonexty'), row=1, col=1)
         if 'macd_hist' in df.columns:
             colors = ['#00e676' if val >= 0 else '#ff5252' for val in df['macd_hist'].fillna(0)]
             fig.add_trace(go.Bar(x=df.index, y=df['macd_hist'], marker_color=colors, name="MACD Hist"), row=2, col=1)
@@ -152,7 +155,7 @@ if navigation_section.startswith("📈"):
         st.plotly_chart(fig, use_container_width=True)
 
 elif navigation_section.startswith("🧠"):
-    st.header("🧠 نموذج الذكاء الاصطناعي المؤسسي (GradientBoosting + ML)")
+    st.header("🧠 نموذج الذكاء الاصطناعي المؤسسي المتقدم (GradientBoosting + LSTM + Supertrend)")
     if not df.empty:
         c1, c2, c3, c4 = st.columns(4)
         ml_s = df['ai_score'].iloc[-1]
@@ -165,7 +168,7 @@ elif navigation_section.startswith("🧠"):
         c3.metric("CMF & Volume Momentum", f"{sent_s:.1f}%")
         c4.metric("Model Backtest Accuracy", f"{acc:.1f}%")
 
-        st.success(f"🤖 **القرار الموحد للشبكة:** التوصية الفورية للأصل {selected_symbol} هي **{df['rl_action'].iloc[-1]}**.")
+        st.success(f"🤖 **القرار الموحد للشبكة:** التوصية الفورية للأصل {selected_symbol} هي **{df['rl_action'].iloc[-1]}** مع تأكيد مؤشر Supertrend المؤسسي.")
 
 elif navigation_section.startswith("🐋"):
     st.header(f"🐋 نظام رصد صفقات الحيتان وتصفية العقود الآجلة - {selected_symbol}")
@@ -205,7 +208,7 @@ elif navigation_section.startswith("🤖"):
         cur_action = df['rl_action'].iloc[-1]
         cur_atr = df['atr'].iloc[-1] if 'atr' in df.columns else 1.0
 
-        if st.button("🚀 تشغيل حلقة التنفيذ الذاتي الفوري"):
+        if st.button("🚀 تشغيل حلقة التنفيذ الذاتي الفوري وبث تليجرام"):
             if cur_action == "HOLD":
                 st.warning("⚠️ القرار الحالي (HOLD). لا توجد إشارة تنفيذ.")
             else:
@@ -217,7 +220,11 @@ elif navigation_section.startswith("🤖"):
                 
                 if telegram_token and telegram_chat_id:
                     msg = f"🚀 *QuantClaw Autonomous Trade [{env_clean}]*\n- Symbol: {selected_symbol}\n- Action: {cur_action}\n- Price: ${cur_price:,.2f}\n- Size: {size:.4f}"
-                    send_telegram_alert(telegram_token, telegram_chat_id, msg)
+                    sent_status = send_telegram_alert(telegram_token, telegram_chat_id, msg)
+                    if sent_status:
+                        st.success("📨 تم إرسال التنبيه الفوري إلى تليجرام بنجاح!")
+                    else:
+                        st.error("❌ فشل إرسال تنبيه تليجرام، تأكد من صحة التوكن ورقم الشات آي دي.")
 
                 if env_clean != "Simulator":
                     res = execute_binance_order(auto_key, auto_sec, selected_symbol, cur_action, size, env_clean)
