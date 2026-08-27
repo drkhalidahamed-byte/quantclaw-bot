@@ -12,7 +12,7 @@ from trading_engine import (
 
 st.set_page_config(page_title="QuantClaw Ultimate AI Enterprise", layout="wide", initial_sidebar_state="expanded")
 
-# --- Sidebar Controls ---
+# --- Sidebar Navigation & Controls ---
 st.sidebar.title("⚡ QuantClaw Ultimate AI")
 market_type = st.sidebar.radio("السوق:", ["العملات الرقمية (Crypto)", "الأسهم الأمريكية & ETFs"])
 
@@ -22,6 +22,22 @@ stock_symbols = ["NVDA", "AAPL", "TSLA", "MSFT", "AMZN", "COIN"]
 active_symbols = stock_symbols if market_type.startswith("الأسهم") else crypto_symbols
 selected_symbol = st.sidebar.selectbox("🎯 الأصل النشط", active_symbols)
 timeframe = st.sidebar.selectbox("⏱️ الإطار الزمني", ["5m", "15m", "1h", "4h", "1d"])
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("📂 التنقل بين أقسام المنصة")
+navigation_section = st.sidebar.radio(
+    "اختر القسم المطلوب:",
+    [
+        "📈 1. الشارت والمؤشرات الفنية",
+        "🧠 2. منظومة الذكاء الاصطناعي (AI)",
+        "🤖 3. أوامر ووكيل Telegram",
+        "🚀 4. التنفيذ الآلي والـ API",
+        "🗺️ 5. خريطة الحرارة والماسح",
+        "📊 6. تقاطع الأطر الزمنية",
+        "📒 7. سجل الأداء ومنحنى المحفظة",
+        "🛡️ 8. حماية المؤسسات والمخاطر"
+    ]
+)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("⚙️ إعدادات النماذج والذكاء الاصطناعي")
@@ -78,21 +94,10 @@ def fetch_data(symbol, interval):
 
 df = fetch_data(selected_symbol, timeframe)
 
-# Tabs Navigation
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-    "📈 الشارت والمؤشرات",
-    "🧠 منظومة الذكاء الاصطناعي (Ultimate AI)",
-    "🤖 الوكيل الذكي والأوامر (Telegram)",
-    "🚀 التنفيذ الآلي والـ API",
-    "🗺️ خريطة الحرارة والماسح", 
-    "📊 تقاطع الأطر الزمنية",
-    "📒 سجل الأداء ومنحنى المحفظة",
-    "🛡️ حماية المؤسسات وقاطع الدائرة"
-])
+# --- Render Selected Section ---
 
-# --- TAB 1: CHART ---
-with tab1:
-    st.header(f"📈 التحليل الفني - {selected_symbol}")
+if navigation_section.startswith("📈"):
+    st.header(f"📈 التحليل الفني والشارت - {selected_symbol}")
     if not df.empty and len(df) > 5:
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.6, 0.2, 0.2])
         fig.add_trace(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"), row=1, col=1)
@@ -107,8 +112,7 @@ with tab1:
         fig.update_layout(template="plotly_dark", height=700, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: ULTIMATE AI ECOSYSTEM ---
-with tab2:
+elif navigation_section.startswith("🧠"):
     st.header("🧠 لوحة قيادة الذكاء الاصطناعي الشاملة (Multi-AI Engine)")
     if not df.empty:
         c1, c2, c3, c4 = st.columns(4)
@@ -124,8 +128,7 @@ with tab2:
 
         st.info(f"💡 **توصية النظام الموحدة:** بناءً على تقاطع نماذج الـ AI (عصبية، تعلم آلي وتحليل مشاعر)، القرار الحالي لـ {selected_symbol} هو **{rl_act}** بثقة إجمالية تبلغ `{((ml_s + lstm_s + sent_s)/3):.1f}%`.")
 
-# --- TAB 3: TELEGRAM BOT ---
-with tab3:
+elif navigation_section.startswith("🤖"):
     st.header("🤖 الوكيل الذكي ومراقبة أوامر التيليجرام")
     if st.button("🔄 فحص رسائل Telegram الواردة"):
         updates = poll_telegram_commands(telegram_token)
@@ -141,8 +144,7 @@ with tab3:
             send_telegram_alert(report)
             st.success("تم إرسال التقرير بنجاح إلى التيليجرام!")
 
-# --- TAB 4: API & EXECUTION ---
-with tab4:
+elif navigation_section.startswith("🚀"):
     st.header("🚀 التنفيذ الآلي والربط الحقيقي (API)")
     c_e1, c_e2 = st.columns(2)
     with c_e1:
@@ -156,8 +158,7 @@ with tab4:
                 log_trade_to_db(selected_symbol, "BUY", lp, amt, "Active")
                 st.success("تم تسجيل الصفقة بنجاح!")
 
-# --- TAB 5: HEATMAP ---
-with tab5:
+elif navigation_section.startswith("🗺️"):
     st.header("🗺️ خريطة الحرارة والماسح الفوري")
     all_syms = crypto_symbols + stock_symbols
     h_data = []
@@ -171,16 +172,14 @@ with tab5:
     if h_data:
         st.dataframe(pd.DataFrame(h_data), use_container_width=True)
 
-# --- TAB 6: MULTI-TIMEFRAME ---
-with tab6:
+elif navigation_section.startswith("📊"):
     st.header("📊 تقاطع الأطر الزمنية")
     for tf in ["15m", "1h", "4h"]:
         sub = fetch_data(selected_symbol, tf)
         if not sub.empty:
             st.write(f"**الإطار الزمني {tf}:** السعر = `${sub['close'].iloc[-1]:,.2f}` | AI Action = `{sub['rl_action'].iloc[-1]}`")
 
-# --- TAB 7: SQLITE JOURNAL ---
-with tab7:
+elif navigation_section.startswith("📒"):
     st.header("📒 سجل الأداء ومنحنى نمو المحفظة (Equity Curve)")
     trades_df = get_trades_from_db()
     if not trades_df.empty:
@@ -193,8 +192,7 @@ with tab7:
     else:
         st.info("لا توجد سجلات صفقات حالياً.")
 
-# --- TAB 8: RISK ENGINE ---
-with tab8:
+elif navigation_section.startswith("🛡️"):
     st.header("🛡️ حاسبة المخاطر المؤسسية وقاطع الدائرة اليومي")
     acc = st.number_input("رأس المال الإجمالي ($)", value=10000.0)
     risk = st.slider("المخاطرة لكل صفقة (%)", 0.5, 5.0, 1.0)
