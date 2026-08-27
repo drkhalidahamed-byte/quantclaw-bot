@@ -7,13 +7,13 @@ from plotly.subplots import make_subplots
 import requests
 from trading_engine import (
     calculate_indicators, calculate_position_size, execute_binance_order,
-    log_trade_to_db, get_trades_from_db, clear_trades_db
+    log_trade_to_db, get_trades_from_db, clear_trades_db, poll_telegram_commands
 )
 
-st.set_page_config(page_title="QuantClaw Enterprise Console", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="QuantClaw Autonomous Console", layout="wide", initial_sidebar_state="expanded")
 
 # --- Sidebar Controls ---
-st.sidebar.title("⚡ QuantClaw Enterprise")
+st.sidebar.title("⚡ QuantClaw Autonomous")
 market_type = st.sidebar.radio("السوق:", ["العملات الرقمية (Crypto)", "الأسهم الأمريكية & ETFs"])
 
 crypto_symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
@@ -24,7 +24,7 @@ selected_symbol = st.sidebar.selectbox("🎯 الأصل النشط", active_symb
 timeframe = st.sidebar.selectbox("⏱️ الإطار الزمني", ["5m", "15m", "1h", "4h", "1d"])
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("⚙️ إعدادات المؤشرات")
+st.sidebar.subheader("⚙️ إعدادات النموذج الذكي")
 ema_period = st.sidebar.slider("EMA Period", 20, 200, 200, 5)
 rsi_period = st.sidebar.slider("RSI Period", 7, 30, 14, 1)
 atr_period = st.sidebar.slider("ATR Period", 5, 30, 10, 1)
@@ -32,7 +32,7 @@ atr_multiplier = st.sidebar.slider("ATR Stop Multiplier", 1.0, 5.0, 2.0, 0.1)
 risk_reward_ratio = st.sidebar.slider("Risk/Reward Ratio (TP Multiplier)", 1.0, 5.0, 2.0, 0.5)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📲 Telegram Bot")
+st.sidebar.subheader("📲 Telegram Autonomous Bot")
 telegram_token = st.sidebar.text_input("Bot Token", type="password")
 telegram_chat_id = st.sidebar.text_input("Chat ID")
 
@@ -79,8 +79,8 @@ df = fetch_data(selected_symbol, timeframe)
 
 # Tabs Navigation
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "📈 الشارت التفاعلي",
-    "🤖 مساعد الذكاء الاصطناعي (AI Chat)",
+    "📈 الشارت والتعلم الآلي (ML)",
+    "🤖 الوكيل الذكي والأوامر (Telegram)",
     "🚀 التنفيذ الآلي والـ API",
     "🗺️ خريطة الحرارة والماسح", 
     "📊 تقاطع الأطر الزمنية",
@@ -88,15 +88,15 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🛡️ إدارة المخاطر المؤسسية"
 ])
 
-# --- TAB 1: ADVANCED CHART ---
+# --- TAB 1: ML CHART ---
 with tab1:
-    st.header(f"📈 التحليل الفني المتقدم - {selected_symbol}")
+    st.header(f"📈 التحليل الفني ونموذج الـ Machine Learning - {selected_symbol}")
     if not df.empty and len(df) > 5:
-        ai_prob = df['ai_score'].iloc[-1]
+        ml_prob = df['ai_score'].iloc[-1]
         c1, c2, c3 = st.columns(3)
-        c1.metric("مؤشر الثقة الذكي (AI Score)", f"{ai_prob:.1f}%")
+        c1.metric("احتمالية الصعود (Random Forest ML)", f"{ml_prob:.1f}%")
         c2.metric("السعر الحالي", f"${df['close'].iloc[-1]:,.2f}")
-        c3.metric("RSI Momentum", f"{df['rsi'].iloc[-1]:.1f}")
+        c3.metric("RSI", f"{df['rsi'].iloc[-1]:.1f}")
 
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.6, 0.2, 0.2])
         fig.add_trace(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"), row=1, col=1)
@@ -113,24 +113,29 @@ with tab1:
         fig.update_layout(template="plotly_dark", height=700, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: AI TRADING ASSISTANT ---
+# --- TAB 2: TELEGRAM AUTONOMOUS AGENT ---
 with tab2:
-    st.header("🤖 مساعد التداول الذكي (AI Analyst)")
-    st.write("اسأل مساعد الذكاء الاصطناعي عن وضع الأصل الحالي أو اطلب تقييماً للإشارة الفنية:")
+    st.header("🤖 الوكيل الذكي ومراقبة أوامر التيليجرام")
+    st.write("يمكنك فحص الرسائل الواردة من تيليجرام لتنفيذ الأوامر أوتوماتيكياً:")
     
-    user_query = st.text_input("أدخل سؤالك هنا (مثلاً: ما هو تقييمك لحالة السعر الحالية؟)")
-    if user_query and not df.empty:
-        last_close = df['close'].iloc[-1]
-        last_rsi = df['rsi'].iloc[-1]
-        last_ai = df['ai_score'].iloc[-1]
-        
-        st.markdown("### 💡 تقرير الذكاء الاصطناعي:")
-        if last_ai > 60:
-            st.success(f"الوضع الحالي لـ {selected_symbol} **إيجابي (Bullish)**. مؤشر الثقة عند `{last_ai:.1f}%`، وقيمة الـ RSI تسجل `{last_rsi:.1f}`. الزخم العام يدعم الشراء مع متابعة خط الـ VWAP.")
-        elif last_ai < 40:
-            st.warning(f"الوضع الحالي لـ {selected_symbol} **سلبي أو هابط (Bearish)**. مؤشر الثقة منخفض عند `{last_ai:.1f}%`، والزخم يشير لضغوط بيعية.")
+    if st.button("🔄 فحص رسائل Telegram الواردة"):
+        updates = poll_telegram_commands(telegram_token)
+        if updates:
+            st.success(f"تم رصد {len(updates)} رسالة جديدة!")
+            for u in updates:
+                msg = u.get("message", {}).get("text", "")
+                chat = u.get("message", {}).get("chat", {}).get("id", "")
+                st.write(f"رسالة من (Chat ID: {chat}): `{msg}`")
         else:
-            st.info(f"السوق في حالة **حيادية (Neutral)** لـ {selected_symbol}. يفضل الانتظار حتى كسر المستويات العرضية.")
+            st.info("لا توجد رسائل جديدة معلقة.")
+
+    if st.button("📤 إرسال تقرير حالة الأصول الفوري للتيليجرام"):
+        if not df.empty:
+            p_now = df['close'].iloc[-1]
+            score = df['ai_score'].iloc[-1]
+            report = f"📊 *تقرير QuantClaw الآلي*\n- الأصل: {selected_symbol}\n- السعر: ${p_now:,.2f}\n- مؤشر ML: {score:.1f}%"
+            send_telegram_alert(report)
+            st.success("تم إرسال التقرير بنجاح إلى التيليجرام!")
 
 # --- TAB 3: EXECUTION & API ---
 with tab3:
@@ -144,12 +149,12 @@ with tab3:
         amt = st.number_input("مبلغ الصفقة ($)", value=100.0)
         if not df.empty:
             lp = df['close'].iloc[-1]
-            if st.button("🛒 تنفيذ شراء وإرسال لسجل SQLite"):
+            if st.button("🛒 تنفيذ شراء وتسجيل في SQLite"):
                 log_trade_to_db(selected_symbol, "BUY", lp, amt, "Active")
-                st.success("تم تنفيذ الصفقة وحفظها في قاعدة البيانات المحلية بنجاح!")
-                send_telegram_alert(f"🛒 صفقة ناجحة على {selected_symbol} بسعر ${lp:,.2f}")
+                st.success("تم تسجيل الصفقة بنجاح!")
+                send_telegram_alert(f"🛒 صفقة جديدة: BUY {selected_symbol} @ ${lp:,.2f}")
 
-# --- TAB 4: HEATMAP & SCANNER ---
+# --- TAB 4: HEATMAP ---
 with tab4:
     st.header("🗺️ خريطة الحرارة والماسح الفوري")
     all_syms = crypto_symbols + stock_symbols
@@ -170,9 +175,9 @@ with tab5:
     for tf in ["15m", "1h", "4h"]:
         sub = fetch_data(selected_symbol, tf)
         if not sub.empty:
-            st.write(f"**الإطار الزمني {tf}:** السعر = `${sub['close'].iloc[-1]:,.2f}` | RSI = `{sub['rsi'].iloc[-1]:.1f}`")
+            st.write(f"**الإطار الزمني {tf}:** السعر = `${sub['close'].iloc[-1]:,.2f}` | ML Score = `{sub['ai_score'].iloc[-1]:,.1f}%`")
 
-# --- TAB 6: SQLITE TRADE JOURNAL ---
+# --- TAB 6: SQLITE JOURNAL ---
 with tab6:
     st.header("📒 سجل الأداء والمحافظ (SQLite Database)")
     trades_df = get_trades_from_db()
@@ -182,7 +187,7 @@ with tab6:
             clear_trades_db()
             st.rerun()
     else:
-        st.info("لا توجد سجلات صفقات في قاعدة البيانات حتى الآن.")
+        st.info("لا توجد سجلات صفقات حالياً.")
 
 # --- TAB 7: RISK ENGINE ---
 with tab7:

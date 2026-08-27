@@ -7,8 +7,8 @@ import requests
 import urllib.parse
 import sqlite3
 from datetime import datetime
+from sklearn.ensemble import RandomForestClassifier
 
-# --- Database & Journal Setup ---
 DB_NAME = "quantclaw_journal.db"
 
 def init_db():
@@ -54,9 +54,10 @@ def clear_trades_db():
     conn.commit()
     conn.close()
 
-# --- Technical Indicators & AI Engine ---
+# --- Advanced ML Indicators & Random Forest Predictor ---
 def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
-    if df.empty or len(df) < max(ema_period, rsi_period, atr_period, 20):
+    if df.empty or len(df) < max(ema_period, rsi_period, atr_period, 50):
+        df['ai_score'] = 50.0
         return df
 
     df['ema'] = df['close'].ewm(span=ema_period, adjust=False).mean()
@@ -88,15 +89,23 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     typical_price = (df['high'] + df['low'] + df['close']) / 3
     df['vwap'] = (typical_price * df['volume']).cumsum() / (df['volume'].cumsum() + 1e-9)
 
-    df['vol_sma20'] = df['volume'].rolling(20).mean()
-    df['vol_spike'] = df['volume'] > (df['vol_sma20'] * 2.0)
+    # Scikit-Learn Machine Learning Model Training (Random Forest)
+    df['target'] = np.where(df['close'].shift(-1) > df['close'], 1, 0)
+    ml_features = ['rsi', 'macd_hist', 'atr']
+    clean_ml = df.dropna(subset=ml_features + ['target'])
 
-    # AI Trend Score
-    df['ai_score'] = 50.0
-    df.loc[df['close'] > df['ema'], 'ai_score'] += 15.0
-    df.loc[df['rsi'] > 50, 'ai_score'] += 15.0
-    df.loc[df['macd_hist'] > 0, 'ai_score'] += 20.0
-    df['ai_score'] = df['ai_score'].clip(0, 100)
+    if len(clean_ml) > 30:
+        X = clean_ml[ml_features]
+        y = clean_ml['target']
+        model = RandomForestClassifier(n_estimators=50, random_state=42)
+        model.fit(X, y)
+        
+        # Predict probability for the whole dataset
+        all_X = df[ml_features].fillna(0)
+        probs = model.predict_proba(all_X)[:, 1] * 100
+        df['ai_score'] = probs
+    else:
+        df['ai_score'] = 50.0
 
     return df
 
@@ -135,3 +144,15 @@ def execute_binance_order(api_key, api_secret, symbol, side, quantity, testnet=T
         return response.json()
     except Exception as e:
         return {"error": str(e)}
+
+def poll_telegram_commands(token):
+    if not token:
+        return []
+    url = f"https://api.telegram.org/bot{token}/getUpdates"
+    try:
+        res = requests.get(url, timeout=5).json()
+        if res.get("ok"):
+            return res.get("result", [])
+    except Exception:
+        pass
+    return []
