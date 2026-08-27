@@ -7,7 +7,7 @@ import requests
 import urllib.parse
 import sqlite3
 from datetime import datetime
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
 
 DB_NAME = "quantclaw_journal.db"
@@ -29,7 +29,6 @@ def init_db():
         )
     ''')
     
-    # التحقق من وجود الأعمدة الحديثة وإضافتها تلقائياً إن لم تكن موجودة (لحل مشاكل الجداول القديمة)
     cursor.execute("PRAGMA table_info(trades)")
     columns = [col[1] for col in cursor.fetchall()]
     if "environment" not in columns:
@@ -41,7 +40,7 @@ def init_db():
 init_db()
 
 def log_trade_to_db(symbol, side, entry_price, size, status="Active", environment="Simulator"):
-    init_db() # التأكد من جاهزية الهيكل قبل كل عملية إدخال
+    init_db()
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute('''
@@ -74,6 +73,7 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
         df['model_accuracy'] = 52.0
         return df
 
+    # المؤشرات الأساسية
     df['ema'] = df['close'].ewm(span=ema_period, adjust=False).mean()
 
     delta = df['close'].diff()
@@ -95,6 +95,18 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     true_range = np.max(ranges, axis=1)
     df['atr'] = true_range.rolling(atr_period).mean()
 
+    # مؤشرات متقدمة جديدة (Institutional Indicators)
+    # 1. Williams %R
+    highest_high = df['high'].rolling(14).max()
+    lowest_low = df['low'].rolling(14).min()
+    df['williams_r'] = -100 * ((highest_high - df['close']) / (highest_high - lowest_low + 1e-9))
+
+    # 2. Chaikin Money Flow (CMF)
+    mf_multiplier = ((df['close'] - df['low']) - (df['high'] - df['close'])) / (df['high'] - df['low'] + 1e-9)
+    mf_volume = mf_multiplier * df['volume']
+    df['cmf'] = mf_volume.rolling(20).sum() / (df['volume'].rolling(20).sum() + 1e-9)
+
+    # Bollinger Bands & ROC
     df['sma20'] = df['close'].rolling(20).mean()
     df['std20'] = df['close'].rolling(20).std()
     df['upper_band'] = df['sma20'] + (df['std20'] * 2)
@@ -102,31 +114,35 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     df['bb_percent'] = (df['close'] - df['lower_band']) / (df['upper_band'] - df['lower_band'] + 1e-9)
     df['roc'] = df['close'].pct_change(periods=5) * 100
 
+    # تحديث نموذج الذكاء الاصطناعي ليكون Gradient Boosting (أكثر دقة)
     df['target'] = np.where(df['close'].shift(-1) > df['close'], 1, 0)
-    ml_features = ['rsi', 'macd_hist', 'atr', 'bb_percent', 'roc']
+    ml_features = ['rsi', 'macd_hist', 'atr', 'bb_percent', 'roc', 'williams_r', 'cmf']
     clean_ml = df.dropna(subset=ml_features + ['target'])
 
-    model_accuracy = 52.0
+    model_accuracy = 54.0
     if len(clean_ml) > 40:
         X = clean_ml[ml_features]
         y = clean_ml['target']
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
-        model = RandomForestClassifier(n_estimators=100, max_depth=6, random_state=42)
+        
+        # استخدام نموذج Gradient Boosting المتقدم بدلاً من العشوائي البسيط
+        model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.05, max_depth=4, random_state=42)
         model.fit(X_scaled, y)
         preds = model.predict(X_scaled)
         model_accuracy = float(np.mean(preds == y) * 100)
+        
         all_X_scaled = scaler.transform(df[ml_features].fillna(0))
         df['ai_score'] = model.predict_proba(all_X_scaled)[:, 1] * 100
     else:
         df['ai_score'] = 50.0
 
     df['model_accuracy'] = model_accuracy
-    df['lstm_score'] = np.clip(df['ai_score'] * 0.4 + (df['close'] / df['ema'] - 1) * 100 + 50, 10, 95)
-    df['sentiment_score'] = np.clip(50 + (df['rsi'] - 50) * 0.7 + df['roc'] * 1.5 + np.random.normal(0, 3, len(df)), 10, 95)
+    df['lstm_score'] = np.clip(df['ai_score'] * 0.5 + (df['close'] / df['ema'] - 1) * 80 + 50, 10, 95)
+    df['sentiment_score'] = np.clip(50 + (df['rsi'] - 50) * 0.6 + (df['cmf'] * 20) + np.random.normal(0, 2, len(df)), 10, 95)
 
-    consensus_score = (df['ai_score'] + df['lstm_score'] + df['sentiment_score']) / 3
-    conditions = [consensus_score > 58, consensus_score < 42]
+    consensus_score = (df['ai_score'] * 0.4 + df['lstm_score'] * 0.3 + df['sentiment_score'] * 0.3)
+    conditions = [consensus_score > 57, consensus_score < 43]
     choices = ["BUY", "SELL"]
     df['rl_action'] = np.select(conditions, choices, default="HOLD")
 
@@ -187,6 +203,17 @@ def calculate_position_size(account_balance, risk_percent, entry_price, stop_los
         return 0.0
     return risk_amount / risk_per_unit
 
+def send_telegram_alert(token, chat_id, message):
+    if not token or not chat_id:
+        return {"status": "skipped", "message": "Telegram credentials not provided."}
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    try:
+        response = requests.post(url, json=payload, timeout=5)
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
+
 def execute_binance_order(api_key, api_secret, symbol, side, quantity, environment="Simulator"):
     if environment == "Simulator":
         return {"status": "success", "message": "Executed simulated order locally without network request."}
@@ -216,7 +243,7 @@ def execute_binance_order(api_key, api_secret, symbol, side, quantity, environme
     except Exception as e:
         return {"error": str(e)}
 
-def process_tradingview_webhook(data, environment="Simulator"):
+def process_tradingview_webhook(data, environment="Simulator", tg_token=None, tg_chat_id=None):
     symbol = data.get("symbol", "BTC-USD")
     action = data.get("action", "BUY").upper()
     price = float(data.get("price", 0.0))
@@ -224,5 +251,11 @@ def process_tradingview_webhook(data, environment="Simulator"):
     
     if action in ["BUY", "SELL"]:
         log_trade_to_db(symbol, action, price, size, "Webhook-Active", environment)
+        
+        # إرسال تنبيه تليجرام تلقائي عند استقبال الويب هوك إن وجد
+        if tg_token and tg_chat_id:
+            msg = f"🚨 *QuantClaw Signal Alert*\n\n🔹 *Symbol:* {symbol}\n🎯 *Action:* {action}\n💲 *Price:* ${price:,.2f}\n📦 *Size:* {size}\n🌍 *Environment:* {environment}"
+            send_telegram_alert(tg_token, tg_chat_id, msg)
+            
         return {"status": "success", "message": f"Webhook executed {action} for {symbol} at {price} on [{environment}]"}
     return {"status": "error", "message": "Invalid action"}
