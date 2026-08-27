@@ -6,14 +6,14 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests
 from trading_engine import (
-    calculate_indicators, calculate_position_size, execute_binance_order,
-    log_trade_to_db, get_trades_from_db, clear_trades_db, poll_telegram_commands
+    calculate_indicators, run_institutional_backtest, calculate_position_size, 
+    execute_binance_order, log_trade_to_db, get_trades_from_db, clear_trades_db, poll_telegram_commands
 )
 
 st.set_page_config(page_title="QuantClaw Ultimate AI Enterprise", layout="wide", initial_sidebar_state="expanded")
 
 # --- Sidebar Navigation & Controls ---
-st.sidebar.title("⚡ QuantClaw Ultimate AI")
+st.sidebar.title("⚡ QuantClaw Institutional")
 market_type = st.sidebar.radio("السوق:", ["العملات الرقمية (Crypto)", "الأسهم الأمريكية & ETFs"])
 
 crypto_symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
@@ -30,12 +30,13 @@ navigation_section = st.sidebar.radio(
     [
         "📈 1. الشارت والمؤشرات الفنية",
         "🧠 2. منظومة الذكاء الاصطناعي (AI Models)",
-        "🤖 3. أوامر ووكيل Telegram",
-        "🚀 4. التنفيذ الآلي والـ API",
-        "🗺️ 5. خريطة الحرارة والماسح",
-        "📊 6. تقاطع الأطر الزمنية",
-        "📒 7. سجل الأداء ومنحنى المحفظة",
-        "🛡️ 8. حماية المؤسسات والمخاطر"
+        "🧪 3. محرك الاختبار العكسي (Backtest)",
+        "🤖 4. أوامر ووكيل Telegram",
+        "🚀 5. التنفيذ الآلي والـ API",
+        "🗺️ 6. خريطة الحرارة والماسح",
+        "📊 7. تقاطع الأطر الزمنية",
+        "📒 8. سجل الأداء ومنحنى المحفظة",
+        "🛡️ 9. حماية المؤسسات والمخاطر"
     ]
 )
 
@@ -47,6 +48,7 @@ atr_period = st.sidebar.slider("ATR Period", 5, 30, 10, 1)
 atr_multiplier = st.sidebar.slider("ATR Stop Multiplier", 1.0, 5.0, 2.0, 0.1)
 risk_reward_ratio = st.sidebar.slider("Risk/Ratio (TP Multiplier)", 1.0, 5.0, 2.0, 0.5)
 max_daily_drawdown = st.sidebar.slider("Circuit Breaker Max Loss (%)", 1.0, 10.0, 3.0, 0.5)
+initial_capital = st.sidebar.number_input("محاكاة رأس المال ($)", value=10000.0)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📲 Telegram Autonomous Bot")
@@ -127,7 +129,23 @@ elif navigation_section.startswith("🧠"):
         c3.metric("مؤشر المشاعر المحسّن (FinBERT)", f"{sent_s:.1f}%")
         c4.metric("دقة النماذج التاريخية (Backtest)", f"{acc:.1f}%")
 
-        st.success(f"🤖 **القرار الموحد لشبكة الذكاء الاصطناعي:** بناءً على الميزات الهندسية المتقدمة (Bollinger %B و ROC)، قرار التداول الموصى به لـ {selected_symbol} هو **{rl_act}**.")
+        st.success(f"🤖 **القرار الموحد لشبكة الذكاء الاصطناعي:** بناءً على الميزات الهندسية المتقدمة، قرار التداول الموصى به لـ {selected_symbol} هو **{rl_act}**.")
+
+elif navigation_section.startswith("🧪"):
+    st.header(f"🧪 محرك الاختبار العكسي المؤسسي (Institutional Backtest) - {selected_symbol}")
+    if not df.empty:
+        bt_results = run_institutional_backtest(df, initial_capital)
+        
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("معدل شارب (Sharpe)", bt_results["sharpe"])
+        m2.metric("معدل سورتينو (Sortino)", bt_results["sortino"])
+        m3.metric("أقصى تراجع (Max DD)", f"{bt_results['max_dd']}%")
+        m4.metric("عامل الربح (Profit Factor)", bt_results["profit_factor"])
+        m5.metric("معدل الصفقات الناجحة", f"{bt_results['win_rate']}%")
+
+        st.subheader("📈 منحنى النمو الرأسمالي للاستراتيجية (Equity Curve)")
+        st.line_chart(bt_results["equity_curve"])
+        st.info("💡 تم حساب هذه المعايير بناءً على محاكاة تنفيذ صفقات النموذج الآلي على التاريخ المتاح للأصل.")
 
 elif navigation_section.startswith("🤖"):
     st.header("🤖 الوكيل الذكي ومراقبة أوامر التيليجرام")
@@ -141,7 +159,7 @@ elif navigation_section.startswith("🤖"):
     if st.button("📤 إرسال تقرير حالة الأصول الفوري للتيليجرام"):
         if not df.empty:
             p_now = df['close'].iloc[-1]
-            report = f"📊 *تقرير QuantClaw المحسّن*\n- الأصل: {selected_symbol}\n- السعر: ${p_now:,.2f}\n- قرار AI: {df['rl_action'].iloc[-1]}"
+            report = f"📊 *تقرير QuantClaw المؤسسي*\n- الأصل: {selected_symbol}\n- السعر: ${p_now:,.2f}\n- قرار AI: {df['rl_action'].iloc[-1]}"
             send_telegram_alert(report)
             st.success("تم إرسال التقرير بنجاح إلى التيليجرام!")
 
