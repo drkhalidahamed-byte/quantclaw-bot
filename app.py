@@ -38,34 +38,19 @@ else:
     plotly_template = "plotly"
     plot_bg = "#ffffff"
 
-# --- تطبيق الأنماط الديناميكية بناءً على اختيار المستخدم ---
-st.markdown(f"""
+st.markdown("""
     <style>
-    .main {{ background-color: {bg_color}; color: {text_color}; }}
-    .stSidebar {{ background-color: {sidebar_bg}; border-right: 1px solid {border_color}; }}
-    
-    h1, h2, h3, h4, h5, h6 {{ color: {header_color} !important; font-family: 'Courier New', Courier, monospace; font-weight: bold; }}
-    p, span, label, .stMarkdown {{ color: {text_color} !important; font-size: 15px; }}
-    
-    .metric-card {{ 
-        background-color: {card_bg}; 
-        border: 1px solid {border_color}; 
-        padding: 15px; 
-        border-radius: 8px; 
-        text-align: center; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    
-    .stSelectbox, .stMultiSelect, .stNumberInput, .stTextInput {{ color: {text_color} !important; }}
-    .stButton>button {{ 
+    .main { background-color: var(--bg-color); color: var(--text-color); }
+    h1, h2, h3, h4, h5, h6 { font-family: 'Courier New', Courier, monospace; font-weight: bold; }
+    .stButton>button { 
         background-color: #238636; 
         color: white; 
         font-weight: bold; 
         border-radius: 6px; 
         border: none;
         padding: 8px 16px;
-    }}
-    .stButton>button:hover {{ background-color: #2ea043; }}
+    }
+    .stButton>button:hover { background-color: #2ea043; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -153,7 +138,6 @@ if navigation_section.startswith("📈"):
         if 'rsi' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['rsi'], line=dict(color='#ffab40', width=2), name="RSI"), row=3, col=1)
         
-        # توافق الشارت التلقائي مع الوضع المختار
         fig.update_layout(
             template=plotly_template, 
             paper_bgcolor=bg_color, 
