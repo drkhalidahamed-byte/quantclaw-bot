@@ -14,42 +14,60 @@ from trading_engine import (
 
 st.set_page_config(page_title="QuantClaw Hedge Fund Pro Terminal", layout="wide", initial_sidebar_state="expanded")
 
-# --- Enhanced High-Contrast Bloomberg / TradingView Pro Styling ---
-st.markdown("""
+st.sidebar.title("⚡ QuantClaw Ultimate Pro")
+
+# --- زر التبديل بين الوضع الليلي والوضع العادي (Theme Switcher) ---
+theme_mode = st.sidebar.radio("🎨 وضع العرض (Theme)", ["الوضع الليلي (Dark Mode)", "الوضع الفاتح (Light Mode)"], index=0)
+
+if theme_mode == "الوضع الليلي (Dark Mode)":
+    bg_color = "#0b0f17"
+    sidebar_bg = "#111622"
+    text_color = "#f0f6fc"
+    header_color = "#79c0ff"
+    card_bg = "#161b22"
+    border_color = "#30363d"
+    plotly_template = "plotly_dark"
+    plot_bg = "#111622"
+else:
+    bg_color = "#ffffff"
+    sidebar_bg = "#f0f2f6"
+    text_color = "#1f2328"
+    header_color = "#0969da"
+    card_bg = "#f6f8fa"
+    border_color = "#d0d7de"
+    plotly_template = "plotly"
+    plot_bg = "#ffffff"
+
+# --- تطبيق الأنماط الديناميكية بناءً على اختيار المستخدم ---
+st.markdown(f"""
     <style>
-    /* تحسين الخلفيات والتباين لتكون مريحة جداً للقراءة */
-    .main { background-color: #0b0f17; color: #f0f6fc; }
-    .stSidebar { background-color: #111622; border-right: 1px solid #30363d; }
+    .main {{ background-color: {bg_color}; color: {text_color}; }}
+    .stSidebar {{ background-color: {sidebar_bg}; border-right: 1px solid {border_color}; }}
     
-    /* تحسين العناوين والنصوص لضمان وضوحها التام */
-    h1, h2, h3, h4, h5, h6 { color: #79c0ff !important; font-family: 'Courier New', Courier, monospace; font-weight: bold; }
-    p, span, label, .stMarkdown { color: #e6edf3 !important; font-size: 15px; }
+    h1, h2, h3, h4, h5, h6 {{ color: {header_color} !important; font-family: 'Courier New', Courier, monospace; font-weight: bold; }}
+    p, span, label, .stMarkdown {{ color: {text_color} !important; font-size: 15px; }}
     
-    /* بطاقات المقاييس والمعلومات */
-    .metric-card { 
-        background-color: #161b22; 
-        border: 1px solid #30363d; 
+    .metric-card {{ 
+        background-color: {card_bg}; 
+        border: 1px solid {border_color}; 
         padding: 15px; 
         border-radius: 8px; 
         text-align: center; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* تحسين الأزرار والقوائم المنسدلة */
-    .stSelectbox, .stMultiSelect, .stNumberInput, .stTextInput { color: #ffffff !important; }
-    .stButton>button { 
+    .stSelectbox, .stMultiSelect, .stNumberInput, .stTextInput {{ color: {text_color} !important; }}
+    .stButton>button {{ 
         background-color: #238636; 
         color: white; 
         font-weight: bold; 
         border-radius: 6px; 
         border: none;
         padding: 8px 16px;
-    }
-    .stButton>button:hover { background-color: #2ea043; }
+    }}
+    .stButton>button:hover {{ background-color: #2ea043; }}
     </style>
 """, unsafe_allow_html=True)
-
-st.sidebar.title("⚡ QuantClaw Ultimate Pro")
 
 # --- اختيار بيئة التشغيل ---
 st.sidebar.subheader("🌍 بيئة التشغيل (Execution Environment)")
@@ -135,15 +153,15 @@ if navigation_section.startswith("📈"):
         if 'rsi' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['rsi'], line=dict(color='#ffab40', width=2), name="RSI"), row=3, col=1)
         
-        # تحسين ثيم الشارت ليكون فائق الوضوح ومريحاً للعين
+        # توافق الشارت التلقائي مع الوضع المختار
         fig.update_layout(
-            template="plotly_dark", 
-            paper_bgcolor="#0b0f17", 
-            plot_bgcolor="#111622",
+            template=plotly_template, 
+            paper_bgcolor=bg_color, 
+            plot_bgcolor=plot_bg,
             height=750, 
             xaxis_rangeslider_visible=False, 
             margin=dict(l=10, r=10, t=30, b=10),
-            font=dict(color="#f0f6fc", size=12)
+            font=dict(color=text_color, size=12)
         )
         st.plotly_chart(fig, use_container_width=True)
 
