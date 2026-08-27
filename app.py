@@ -14,13 +14,38 @@ from trading_engine import (
 
 st.set_page_config(page_title="QuantClaw Hedge Fund Pro Terminal", layout="wide", initial_sidebar_state="expanded")
 
-# --- Custom Bloomberg / TradingView Pro Styling ---
+# --- Enhanced High-Contrast Bloomberg / TradingView Pro Styling ---
 st.markdown("""
     <style>
-    .main { background-color: #0d1117; color: #c9d1d9; }
-    .stSidebar { background-color: #161b22; }
-    h1, h2, h3 { color: #58a6ff !important; font-family: 'Courier New', Courier, monospace; }
-    .metric-card { background-color: #21262d; border: 1px solid #30363d; padding: 15px; border-radius: 6px; text-align: center; }
+    /* تحسين الخلفيات والتباين لتكون مريحة جداً للقراءة */
+    .main { background-color: #0b0f17; color: #f0f6fc; }
+    .stSidebar { background-color: #111622; border-right: 1px solid #30363d; }
+    
+    /* تحسين العناوين والنصوص لضمان وضوحها التام */
+    h1, h2, h3, h4, h5, h6 { color: #79c0ff !important; font-family: 'Courier New', Courier, monospace; font-weight: bold; }
+    p, span, label, .stMarkdown { color: #e6edf3 !important; font-size: 15px; }
+    
+    /* بطاقات المقاييس والمعلومات */
+    .metric-card { 
+        background-color: #161b22; 
+        border: 1px solid #30363d; 
+        padding: 15px; 
+        border-radius: 8px; 
+        text-align: center; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    
+    /* تحسين الأزرار والقوائم المنسدلة */
+    .stSelectbox, .stMultiSelect, .stNumberInput, .stTextInput { color: #ffffff !important; }
+    .stButton>button { 
+        background-color: #238636; 
+        color: white; 
+        font-weight: bold; 
+        border-radius: 6px; 
+        border: none;
+        padding: 8px 16px;
+    }
+    .stButton>button:hover { background-color: #2ea043; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -103,14 +128,23 @@ if navigation_section.startswith("📈"):
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.6, 0.2, 0.2])
         fig.add_trace(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"), row=1, col=1)
         if 'ema' in df.columns:
-            fig.add_trace(go.Scatter(x=df.index, y=df['ema'], line=dict(color='#00e676', width=1.5), name=f"EMA {ema_period}"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df.index, y=df['ema'], line=dict(color='#00e676', width=2), name=f"EMA {ema_period}"), row=1, col=1)
         if 'macd_hist' in df.columns:
             colors = ['#00e676' if val >= 0 else '#ff5252' for val in df['macd_hist'].fillna(0)]
             fig.add_trace(go.Bar(x=df.index, y=df['macd_hist'], marker_color=colors, name="MACD Hist"), row=2, col=1)
         if 'rsi' in df.columns:
-            fig.add_trace(go.Scatter(x=df.index, y=df['rsi'], line=dict(color='#ffab40', width=1.5), name="RSI"), row=3, col=1)
+            fig.add_trace(go.Scatter(x=df.index, y=df['rsi'], line=dict(color='#ffab40', width=2), name="RSI"), row=3, col=1)
         
-        fig.update_layout(template="plotly_dark", height=750, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=20, b=10))
+        # تحسين ثيم الشارت ليكون فائق الوضوح ومريحاً للعين
+        fig.update_layout(
+            template="plotly_dark", 
+            paper_bgcolor="#0b0f17", 
+            plot_bgcolor="#111622",
+            height=750, 
+            xaxis_rangeslider_visible=False, 
+            margin=dict(l=10, r=10, t=30, b=10),
+            font=dict(color="#f0f6fc", size=12)
+        )
         st.plotly_chart(fig, use_container_width=True)
 
 elif navigation_section.startswith("🧠"):
