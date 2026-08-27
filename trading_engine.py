@@ -203,14 +203,14 @@ def execute_binance_order(api_key, api_secret, symbol, side, quantity, testnet=T
     except Exception as e:
         return {"error": str(e)}
 
-def poll_telegram_commands(token):
-    if not token:
-        return []
-    url = f"https://api.telegram.org/bot{token}/getUpdates"
-    try:
-        res = requests.get(url, timeout=5).json()
-        if res.get("ok"):
-            return res.get("result", [])
-    except Exception:
-        pass
-    return []
+def process_tradingview_webhook(data):
+    """معالجة تنبيهات Webhook الواردة من TradingView"""
+    symbol = data.get("symbol", "BTC-USD")
+    action = data.get("action", "BUY").upper()
+    price = float(data.get("price", 0.0))
+    size = float(data.get("size", 0.01))
+    
+    if action in ["BUY", "SELL"]:
+        log_trade_to_db(symbol, action, price, size, "Webhook-Active")
+        return {"status": "success", "message": f"Executed {action} for {symbol} at {price}"}
+    return {"status": "error", "message": "Invalid action"}

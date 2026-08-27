@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 import requests
 from trading_engine import (
     calculate_indicators, run_institutional_backtest, calculate_position_size, 
-    execute_binance_order, log_trade_to_db, get_trades_from_db, clear_trades_db, poll_telegram_commands
+    execute_binance_order, log_trade_to_db, get_trades_from_db, clear_trades_db, process_tradingview_webhook
 )
 
 st.set_page_config(page_title="QuantClaw Ultimate AI Enterprise", layout="wide", initial_sidebar_state="expanded")
@@ -31,7 +31,7 @@ navigation_section = st.sidebar.radio(
         "🧠 2. منظومة الذكاء الاصطناعي (AI Models)",
         "🧪 3. محرك الاختبار العكسي (Backtest)",
         "🤖 4. التداول الآلي والوكيل الذكي",
-        "🚀 5. تنفيذ الـ API اليدوي",
+        "🔗 5. استقبال إشارات TradingView (Webhook)",
         "🗺️ 6. خريطة الحرارة والماسح",
         "📊 7. تقاطع الأطر الزمنية",
         "📒 8. سجل الأداء ومنحنى المحفظة",
@@ -166,39 +166,35 @@ elif navigation_section.startswith("🤖"):
             if current_action == "HOLD":
                 st.warning("⚠️ قرار الذكاء الاصطناعي الحالي هو (HOLD). لا توجد إشارة دخول جديدة.")
             else:
-                # حساب حجم الصفقة أوتوماتيكياً عبر حاسبة المخاطر
                 stop_loss = current_price - (current_atr * atr_multiplier) if current_action == "BUY" else current_price + (current_atr * atr_multiplier)
                 calc_size = calculate_position_size(initial_capital, 1.0, current_price, stop_loss)
                 
-                st.success(f"✅ تم تطبيق قواعد إدارة المخاطر: كمية الصفقة الموصى بها = `{calc_size:.4f}` | وقف الخسارة المحسوب = `${stop_loss:,.2f}`")
-
-                # تسجيل الصفقة محلياً
+                st.success(f"✅ تم تطبيق قواعد إدارة المخاطر: كمية الصفقة = `{calc_size:.4f}` | وقف الخسارة = `${stop_loss:,.2f}`")
                 log_trade_to_db(selected_symbol, current_action, current_price, calc_size, "Active")
                 
-                # إرسال تنبيه Telegram أوتوماتيكي
                 alert_text = f"🤖 *تنفيذ صفقة تداول آلي*\n- الأصل: {selected_symbol}\n- القرار: {current_action}\n- السعر: ${current_price:,.2f}\n- الكمية: {calc_size:.4f}"
                 send_telegram_alert(alert_text)
 
-                # محاولة التنفيذ عبر Binance API إذا توفرت المفاتيح
                 if auto_api_key and auto_api_secret:
                     res = execute_binance_order(auto_api_key, auto_api_secret, selected_symbol, current_action, calc_size, testnet=True)
                     st.json(res)
                 else:
-                    st.warning("⚠️ لم يتم إدخال مفاتيح Binance API، تم تسجيل الصفقة محلياً وفي سجلات التيليجرام فقط.")
+                    st.warning("⚠️ تم تسجيل الصفقة محلياً وفي سجلات التيليجرام بنجاح.")
 
-elif navigation_section.startswith("🚀"):
-    st.header("🚀 التنفيذ اليدوي السريع (API)")
-    c_e1, c_e2 = st.columns(2)
-    with c_e1:
-        api_k = st.text_input("API Key", type="password")
-        api_s = st.text_input("API Secret", type="password")
-    with c_e2:
-        amt = st.number_input("مبلغ الصفقة ($)", value=100.0)
-        if not df.empty:
-            lp = df['close'].iloc[-1]
-            if st.button("🛒 تنفيذ شراء فوري"):
-                log_trade_to_db(selected_symbol, "BUY", lp, amt, "Active")
-                st.success("تم تسجيل الصفقة بنجاح!")
+elif navigation_section.startswith("🔗"):
+    st.header("🔗 استقبال إشارات TradingView (Webhook Listener)")
+    st.info("💡 قم بربط تنبيهات TradingView مباشرة بمنصتك السحابية عبر رابط Webhook لتنفيذ الصفقات الفورية.")
+    
+    st.markdown("### 📝 نموذج JSON للإرسال من TradingView:")
+    sample_json = '{\n  "symbol": "BTC-USD",\n  "action": "BUY",\n  "price": 65000.0,\n  "size": 0.01\n}'
+    st.code(sample_json, language="json")
+
+    sim_action = st.selectbox("محاكاة استقبال إشارة من TradingView:", ["BUY", "SELL"])
+    if st.button("⚡ محاكاة تنفيذ Webhook فورية"):
+        sim_data = {"symbol": selected_symbol, "action": sim_action, "price": float(df['close'].iloc[-1]) if not df.empty else 100.0, "size": 0.01}
+        res_wb = process_tradingview_webhook(sim_data)
+        st.success(f"✅ الاستجابة: {res_wb['message']}")
+        send_telegram_alert(f"🔗 *إشارة Webhook جديدة*\n- الأصل: {selected_symbol}\n- القرار: {sim_action}")
 
 elif navigation_section.startswith("🗺️"):
     st.header("🗺️ خريطة الحرارة والماسح الفوري")
