@@ -28,12 +28,20 @@ def init_db():
             environment TEXT
         )
     ''')
+    
+    # التحقق من وجود الأعمدة الحديثة وإضافتها تلقائياً إن لم تكن موجودة (لحل مشاكل الجداول القديمة)
+    cursor.execute("PRAGMA table_info(trades)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "environment" not in columns:
+        cursor.execute("ALTER TABLE trades ADD COLUMN environment TEXT DEFAULT 'Simulator'")
+        
     conn.commit()
     conn.close()
 
 init_db()
 
 def log_trade_to_db(symbol, side, entry_price, size, status="Active", environment="Simulator"):
+    init_db() # التأكد من جاهزية الهيكل قبل كل عملية إدخال
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute('''
@@ -44,6 +52,7 @@ def log_trade_to_db(symbol, side, entry_price, size, status="Active", environmen
     conn.close()
 
 def get_trades_from_db():
+    init_db()
     conn = sqlite3.connect(DB_NAME)
     df = pd.read_sql_query("SELECT * FROM trades", conn)
     conn.close()
