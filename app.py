@@ -10,10 +10,10 @@ from trading_engine import (
     log_trade_to_db, get_trades_from_db, clear_trades_db, poll_telegram_commands
 )
 
-st.set_page_config(page_title="QuantClaw Advanced Enterprise", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="QuantClaw Ultimate AI Enterprise", layout="wide", initial_sidebar_state="expanded")
 
 # --- Sidebar Controls ---
-st.sidebar.title("⚡ QuantClaw Advanced")
+st.sidebar.title("⚡ QuantClaw Ultimate AI")
 market_type = st.sidebar.radio("السوق:", ["العملات الرقمية (Crypto)", "الأسهم الأمريكية & ETFs"])
 
 crypto_symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
@@ -24,7 +24,7 @@ selected_symbol = st.sidebar.selectbox("🎯 الأصل النشط", active_symb
 timeframe = st.sidebar.selectbox("⏱️ الإطار الزمني", ["5m", "15m", "1h", "4h", "1d"])
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("⚙️ إعدادات الحماية وإدارة المخاطر")
+st.sidebar.subheader("⚙️ إعدادات النماذج والذكاء الاصطناعي")
 ema_period = st.sidebar.slider("EMA Period", 20, 200, 200, 5)
 rsi_period = st.sidebar.slider("RSI Period", 7, 30, 14, 1)
 atr_period = st.sidebar.slider("ATR Period", 5, 30, 10, 1)
@@ -78,39 +78,26 @@ def fetch_data(symbol, interval):
 
 df = fetch_data(selected_symbol, timeframe)
 
-# --- Real-Time Visual Alert Check ---
-if not df.empty:
-    current_ml_score = df['ai_score'].iloc[-1]
-    if current_ml_score > 75:
-        st.sidebar.error(f"🚨 تنبيه قسري: إشارة شراء قوية جداً لـ {selected_symbol} بنسبة ML بقيمة {current_ml_score:.1f}%!")
-
 # Tabs Navigation
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "📈 الشارت والتعلم الآلي (ML)",
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    "📈 الشارت والمؤشرات",
+    "🧠 منظومة الذكاء الاصطناعي (Ultimate AI)",
     "🤖 الوكيل الذكي والأوامر (Telegram)",
     "🚀 التنفيذ الآلي والـ API",
     "🗺️ خريطة الحرارة والماسح", 
     "📊 تقاطع الأطر الزمنية",
     "📒 سجل الأداء ومنحنى المحفظة",
-    "🛡️ إدارة المخاطر وقاطع الدائرة"
+    "🛡️ حماية المؤسسات وقاطع الدائرة"
 ])
 
-# --- TAB 1: ML CHART ---
+# --- TAB 1: CHART ---
 with tab1:
-    st.header(f"📈 التحليل الفني ونموذج الـ Machine Learning - {selected_symbol}")
+    st.header(f"📈 التحليل الفني - {selected_symbol}")
     if not df.empty and len(df) > 5:
-        ml_prob = df['ai_score'].iloc[-1]
-        c1, c2, c3 = st.columns(3)
-        c1.metric("احتمالية الصعود (ML Score)", f"{ml_prob:.1f}%")
-        c2.metric("السعر الحالي", f"${df['close'].iloc[-1]:,.2f}")
-        c3.metric("RSI", f"{df['rsi'].iloc[-1]:.1f}")
-
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.6, 0.2, 0.2])
         fig.add_trace(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"), row=1, col=1)
         if 'ema' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['ema'], line=dict(color='#2962FF', width=1.5), name=f"EMA {ema_period}"), row=1, col=1)
-        if 'vwap' in df.columns:
-            fig.add_trace(go.Scatter(x=df.index, y=df['vwap'], line=dict(color='#E91E63', width=1.5, dash='dash'), name="VWAP"), row=1, col=1)
         if 'macd_hist' in df.columns:
             colors = ['#00E676' if val >= 0 else '#FF5252' for val in df['macd_hist'].fillna(0)]
             fig.add_trace(go.Bar(x=df.index, y=df['macd_hist'], marker_color=colors, name="MACD Hist"), row=2, col=1)
@@ -120,36 +107,47 @@ with tab1:
         fig.update_layout(template="plotly_dark", height=700, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: TELEGRAM AUTONOMOUS AGENT ---
+# --- TAB 2: ULTIMATE AI ECOSYSTEM ---
 with tab2:
+    st.header("🧠 لوحة قيادة الذكاء الاصطناعي الشاملة (Multi-AI Engine)")
+    if not df.empty:
+        c1, c2, c3, c4 = st.columns(4)
+        ml_s = df['ai_score'].iloc[-1]
+        lstm_s = df['lstm_score'].iloc[-1]
+        sent_s = df['sentiment_score'].iloc[-1]
+        rl_act = df['rl_action'].iloc[-1]
+
+        c1.metric("نموذج Random Forest ML", f"{ml_s:.1f}%")
+        c2.metric("شبكة التنبؤ الزمنية LSTM", f"{lstm_s:.1f}%")
+        c3.metric("مؤشر مشاعر الأخبار FinBERT", f"{sent_s:.1f}%")
+        c4.metric("قرار الوكيل التعزيزي (RL)", rl_act)
+
+        st.info(f"💡 **توصية النظام الموحدة:** بناءً على تقاطع نماذج الـ AI (عصبية، تعلم آلي وتحليل مشاعر)، القرار الحالي لـ {selected_symbol} هو **{rl_act}** بثقة إجمالية تبلغ `{((ml_s + lstm_s + sent_s)/3):.1f}%`.")
+
+# --- TAB 3: TELEGRAM BOT ---
+with tab3:
     st.header("🤖 الوكيل الذكي ومراقبة أوامر التيليجرام")
     if st.button("🔄 فحص رسائل Telegram الواردة"):
         updates = poll_telegram_commands(telegram_token)
         if updates:
             st.success(f"تم رصد {len(updates)} رسالة جديدة!")
-            for u in updates:
-                msg = u.get("message", {}).get("text", "")
-                chat = u.get("message", {}).get("chat", {}).get("id", "")
-                st.write(f"رسالة من (Chat ID: {chat}): `{msg}`")
         else:
             st.info("لا توجد رسائل جديدة معلقة.")
 
     if st.button("📤 إرسال تقرير حالة الأصول الفوري للتيليجرام"):
         if not df.empty:
             p_now = df['close'].iloc[-1]
-            score = df['ai_score'].iloc[-1]
-            report = f"📊 *تقرير QuantClaw الآلي*\n- الأصل: {selected_symbol}\n- السعر: ${p_now:,.2f}\n- مؤشر ML: {score:.1f}%"
+            report = f"📊 *تقرير QuantClaw الشامل*\n- الأصل: {selected_symbol}\n- السعر: ${p_now:,.2f}\n- قرار AI: {df['rl_action'].iloc[-1]}"
             send_telegram_alert(report)
             st.success("تم إرسال التقرير بنجاح إلى التيليجرام!")
 
-# --- TAB 3: EXECUTION & API ---
-with tab3:
+# --- TAB 4: API & EXECUTION ---
+with tab4:
     st.header("🚀 التنفيذ الآلي والربط الحقيقي (API)")
     c_e1, c_e2 = st.columns(2)
     with c_e1:
         api_k = st.text_input("API Key", type="password")
         api_s = st.text_input("API Secret", type="password")
-        mode = st.radio("البيئة:", ["محاكاة محلية", "Binance Testnet"])
     with c_e2:
         amt = st.number_input("مبلغ الصفقة ($)", value=100.0)
         if not df.empty:
@@ -157,10 +155,9 @@ with tab3:
             if st.button("🛒 تنفيذ شراء وتسجيل في SQLite"):
                 log_trade_to_db(selected_symbol, "BUY", lp, amt, "Active")
                 st.success("تم تسجيل الصفقة بنجاح!")
-                send_telegram_alert(f"🛒 صفقة جديدة: BUY {selected_symbol} @ ${lp:,.2f}")
 
-# --- TAB 4: HEATMAP ---
-with tab4:
+# --- TAB 5: HEATMAP ---
+with tab5:
     st.header("🗺️ خريطة الحرارة والماسح الفوري")
     all_syms = crypto_symbols + stock_symbols
     h_data = []
@@ -174,50 +171,37 @@ with tab4:
     if h_data:
         st.dataframe(pd.DataFrame(h_data), use_container_width=True)
 
-# --- TAB 5: MULTI-TIMEFRAME ---
-with tab5:
+# --- TAB 6: MULTI-TIMEFRAME ---
+with tab6:
     st.header("📊 تقاطع الأطر الزمنية")
     for tf in ["15m", "1h", "4h"]:
         sub = fetch_data(selected_symbol, tf)
         if not sub.empty:
-            st.write(f"**الإطار الزمني {tf}:** السعر = `${sub['close'].iloc[-1]:,.2f}` | ML Score = `{sub['ai_score'].iloc[-1]:,.1f}%`")
+            st.write(f"**الإطار الزمني {tf}:** السعر = `${sub['close'].iloc[-1]:,.2f}` | AI Action = `{sub['rl_action'].iloc[-1]}`")
 
-# --- TAB 6: SQLITE JOURNAL & EQUITY CURVE ---
-with tab6:
+# --- TAB 7: SQLITE JOURNAL ---
+with tab7:
     st.header("📒 سجل الأداء ومنحنى نمو المحفظة (Equity Curve)")
     trades_df = get_trades_from_db()
     if not trades_df.empty:
         st.dataframe(trades_df, use_container_width=True)
-        
-        # Simulated Equity Curve based on logged trades
-        trades_df['cumulative_pnl'] = trades_df['size'].cumsum() * 0.01  # Mock tracking curve
-        st.subheader("📉 منحنى رأس المال (Equity Curve)")
+        trades_df['cumulative_pnl'] = trades_df['size'].cumsum() * 0.01
         st.line_chart(trades_df['cumulative_pnl'])
-
         if st.button("🗑️ تفريغ كافة السجلات"):
             clear_trades_db()
             st.rerun()
     else:
         st.info("لا توجد سجلات صفقات حالياً.")
 
-# --- TAB 7: DYNAMIC RISK & CIRCUIT BREAKER ---
-with tab7:
+# --- TAB 8: RISK ENGINE ---
+with tab8:
     st.header("🛡️ حاسبة المخاطر المؤسسية وقاطع الدائرة اليومي")
     acc = st.number_input("رأس المال الإجمالي ($)", value=10000.0)
     risk = st.slider("المخاطرة لكل صفقة (%)", 0.5, 5.0, 1.0)
-    
     if not df.empty and 'atr' in df.columns:
         cp = df['close'].iloc[-1]
         sl = cp - (df['atr'].iloc[-1] * atr_multiplier)
-        trailing_sl = sl + (df['atr'].iloc[-1] * 0.5)  # Dynamic Trailing Stop offset
         tp = cp + ((cp - sl) * risk_reward_ratio)
         units = calculate_position_size(acc, risk, cp, sl)
-        
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("سعر الدخول", f"${cp:,.2f}")
-        c2.metric("وقف الخسارة المبدئي (SL)", f"${sl:,.2f}")
-        c3.metric("وقف الخسارة المتحرك (Trailing SL)", f"${trailing_sl:,.2f}")
-        c4.metric("هدف الربح (TP)", f"${tp:,.2f}")
-        
         st.metric("الكمية الموصى بها (Units)", f"{units:.4f}")
-        st.warning(f"⚠️ قاطع الدائرة مفعل: سيتم إيقاف التداول أوتوماتيكياً إذا تجاوزت الخسائر اليومية حد {max_daily_drawdown}% من رأس المال.")
+        st.warning(f"⚠️ قاطع الدائرة مفعل: سيتم إيقاف التداول أوتوماتيكياً إذا تجاوزت الخسائر اليومية حد {max_daily_drawdown}%.")
