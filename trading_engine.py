@@ -24,7 +24,8 @@ def init_db():
             entry_price REAL,
             size REAL,
             pnl REAL,
-            status TEXT
+            status TEXT,
+            environment TEXT
         )
     ''')
     conn.commit()
@@ -32,13 +33,13 @@ def init_db():
 
 init_db()
 
-def log_trade_to_db(symbol, side, entry_price, size, status="Active"):
+def log_trade_to_db(symbol, side, entry_price, size, status="Active", environment="Simulator"):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO trades (timestamp, symbol, side, entry_price, size, pnl, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), symbol, side, entry_price, size, 0.0, status))
+        INSERT INTO trades (timestamp, symbol, side, entry_price, size, pnl, status, environment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), symbol, side, entry_price, size, 0.0, status, environment))
     conn.commit()
     conn.close()
 
@@ -177,8 +178,11 @@ def calculate_position_size(account_balance, risk_percent, entry_price, stop_los
         return 0.0
     return risk_amount / risk_per_unit
 
-def execute_binance_order(api_key, api_secret, symbol, side, quantity, testnet=True):
-    base_url = "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
+def execute_binance_order(api_key, api_secret, symbol, side, quantity, environment="Simulator"):
+    if environment == "Simulator":
+        return {"status": "success", "message": "Executed simulated order locally without network request."}
+    
+    base_url = "https://testnet.binancefuture.com" if environment == "Testnet" else "https://fapi.binance.com"
     endpoint = "/fapi/v1/order"
     clean_symbol = symbol.replace("-USD", "").replace("/", "")
     if "BTC" in clean_symbol and not clean_symbol.endswith("USDT"):
@@ -203,14 +207,13 @@ def execute_binance_order(api_key, api_secret, symbol, side, quantity, testnet=T
     except Exception as e:
         return {"error": str(e)}
 
-def process_tradingview_webhook(data):
-    """معالجة تنبيهات Webhook الواردة من TradingView"""
+def process_tradingview_webhook(data, environment="Simulator"):
     symbol = data.get("symbol", "BTC-USD")
     action = data.get("action", "BUY").upper()
     price = float(data.get("price", 0.0))
     size = float(data.get("size", 0.01))
     
     if action in ["BUY", "SELL"]:
-        log_trade_to_db(symbol, action, price, size, "Webhook-Active")
-        return {"status": "success", "message": f"Executed {action} for {symbol} at {price}"}
+        log_trade_to_db(symbol, action, price, size, "Webhook-Active", environment)
+        return {"status": "success", "message": f"Webhook executed {action} for {symbol} at {price} on [{environment}]"}
     return {"status": "error", "message": "Invalid action"}

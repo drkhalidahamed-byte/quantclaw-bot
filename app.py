@@ -13,6 +13,25 @@ from trading_engine import (
 st.set_page_config(page_title="QuantClaw Ultimate AI Enterprise", layout="wide", initial_sidebar_state="expanded")
 
 st.sidebar.title("⚡ QuantClaw Autonomous")
+
+# --- اختيار بيئة التشغيل ---
+st.sidebar.subheader("🌍 بيئة التشغيل (Trading Environment)")
+trading_env = st.sidebar.selectbox(
+    "اختر البيئة:",
+    ["Simulator (المحاكي المحلي)", "Testnet (بيئة التجربة)", "Live (الحساب الحقيقي)"],
+    index=0
+)
+
+# استخراج الكلمة المفتاحية للبيئة
+env_clean = "Simulator"
+if "Testnet" in trading_env:
+    env_clean = "Testnet"
+elif "Live" in trading_env:
+    env_clean = "Live"
+
+if env_clean == "Live":
+    st.sidebar.error("🚨 تحذير: أنت تعمل على البيئة الحية (Live). تأكد من دقة الصفقات.")
+
 market_type = st.sidebar.radio("السوق:", ["العملات الرقمية (Crypto)", "الأسهم الأمريكية & ETFs"])
 
 crypto_symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
@@ -98,7 +117,7 @@ df = fetch_data(selected_symbol, timeframe)
 # --- Render Selected Section ---
 
 if navigation_section.startswith("📈"):
-    st.header(f"📈 التحليل الفني والشارت - {selected_symbol}")
+    st.header(f"📈 التحليل الفني والشارت - {selected_symbol} [{env_clean}]")
     if not df.empty and len(df) > 5:
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.6, 0.2, 0.2])
         fig.add_trace(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"), row=1, col=1)
@@ -145,14 +164,14 @@ elif navigation_section.startswith("🧪"):
         st.line_chart(bt_results["equity_curve"])
 
 elif navigation_section.startswith("🤖"):
-    st.header("🤖 التداول الآلي المرتبط بالذكاء الاصطناعي وإدارة المخاطر")
-    st.info("💡 يقوم هذا القسم بربط قرار الذكاء الاصطناعي، حاسبة المخاطر (ATR)، وسجلات المحفظة في دورة تداول أوتوماتيكية بالكامل.")
+    st.header(f"🤖 التداول الآلي والوكيل الذكي [{env_clean}]")
+    st.info(f"💡 البيئة الحالية المفعلة للتنفيذ هي: **{trading_env}**")
 
     c_api1, c_api2 = st.columns(2)
     with c_api1:
-        auto_api_key = st.text_input("Binance API Key", type="password")
+        auto_api_key = st.text_input("API Key", type="password")
     with c_api2:
-        auto_api_secret = st.text_input("Binance API Secret", type="password")
+        auto_api_secret = st.text_input("API Secret", type="password")
 
     if not df.empty:
         current_price = df['close'].iloc[-1]
@@ -169,32 +188,31 @@ elif navigation_section.startswith("🤖"):
                 stop_loss = current_price - (current_atr * atr_multiplier) if current_action == "BUY" else current_price + (current_atr * atr_multiplier)
                 calc_size = calculate_position_size(initial_capital, 1.0, current_price, stop_loss)
                 
-                st.success(f"✅ تم تطبيق قواعد إدارة المخاطر: كمية الصفقة = `{calc_size:.4f}` | وقف الخسارة = `${stop_loss:,.2f}`")
-                log_trade_to_db(selected_symbol, current_action, current_price, calc_size, "Active")
+                st.success(f"✅ تم تطبيق قواعد إدارة المخاطر [{env_clean}]: كمية الصفقة = `{calc_size:.4f}` | وقف الخسارة = `${stop_loss:,.2f}`")
+                log_trade_to_db(selected_symbol, current_action, current_price, calc_size, "Active", env_clean)
                 
-                alert_text = f"🤖 *تنفيذ صفقة تداول آلي*\n- الأصل: {selected_symbol}\n- القرار: {current_action}\n- السعر: ${current_price:,.2f}\n- الكمية: {calc_size:.4f}"
+                alert_text = f"🤖 *تنفيذ صفقة تداول آلي [{env_clean}]*\n- الأصل: {selected_symbol}\n- القرار: {current_action}\n- السعر: ${current_price:,.2f}\n- الكمية: {calc_size:.4f}"
                 send_telegram_alert(alert_text)
 
-                if auto_api_key and auto_api_secret:
-                    res = execute_binance_order(auto_api_key, auto_api_secret, selected_symbol, current_action, calc_size, testnet=True)
-                    st.json(res)
+                if env_clean != "Simulator":
+                    if auto_api_key and auto_api_secret:
+                        res = execute_binance_order(auto_api_key, auto_api_secret, selected_symbol, current_action, calc_size, env_clean)
+                        st.json(res)
+                    else:
+                        st.warning("⚠️ يرجى إدخال مفاتيح API لتنفيذ الأوامر الحية أو على Testnet.")
                 else:
-                    st.warning("⚠️ تم تسجيل الصفقة محلياً وفي سجلات التيليجرام بنجاح.")
+                    st.success("💻 تم تنفيذ الصفقة في المحاكي المحلي بنجاح وتخزينها في قاعدة البيانات السجلات.")
 
 elif navigation_section.startswith("🔗"):
-    st.header("🔗 استقبال إشارات TradingView (Webhook Listener)")
-    st.info("💡 قم بربط تنبيهات TradingView مباشرة بمنصتك السحابية عبر رابط Webhook لتنفيذ الصفقات الفورية.")
+    st.header(f"🔗 استقبال إشارات TradingView (Webhook) [{env_clean}]")
+    st.info("💡 يتم معالجة الإشارات القادمة من شارتات TradingView وتوجيهها حسب البيئة المحددة.")
     
-    st.markdown("### 📝 نموذج JSON للإرسال من TradingView:")
-    sample_json = '{\n  "symbol": "BTC-USD",\n  "action": "BUY",\n  "price": 65000.0,\n  "size": 0.01\n}'
-    st.code(sample_json, language="json")
-
     sim_action = st.selectbox("محاكاة استقبال إشارة من TradingView:", ["BUY", "SELL"])
     if st.button("⚡ محاكاة تنفيذ Webhook فورية"):
         sim_data = {"symbol": selected_symbol, "action": sim_action, "price": float(df['close'].iloc[-1]) if not df.empty else 100.0, "size": 0.01}
-        res_wb = process_tradingview_webhook(sim_data)
+        res_wb = process_tradingview_webhook(sim_data, env_clean)
         st.success(f"✅ الاستجابة: {res_wb['message']}")
-        send_telegram_alert(f"🔗 *إشارة Webhook جديدة*\n- الأصل: {selected_symbol}\n- القرار: {sim_action}")
+        send_telegram_alert(f"🔗 *إشارة Webhook جديدة [{env_clean}]*\n- الأصل: {selected_symbol}\n- القرار: {sim_action}")
 
 elif navigation_section.startswith("🗺️"):
     st.header("🗺️ خريطة الحرارة والماسح الفوري")
@@ -222,8 +240,8 @@ elif navigation_section.startswith("📒"):
     trades_df = get_trades_from_db()
     if not trades_df.empty:
         st.dataframe(trades_df, use_container_width=True)
-        trades_df['cumulative_pnl'] = trades_df['size'].cumsum() * 0.01
-        st.line_chart(trades_df['cumulative_pnl'])
+        if 'environment' in trades_df.columns:
+            st.bar_chart(trades_df['environment'].value_counts())
         if st.button("🗑️ تفريغ كافة السجلات"):
             clear_trades_db()
             st.rerun()
@@ -240,4 +258,4 @@ elif navigation_section.startswith("🛡️"):
         tp = cp + ((cp - sl) * risk_reward_ratio)
         units = calculate_position_size(acc, risk, cp, sl)
         st.metric("الكمية الموصى بها (Units)", f"{units:.4f}")
-        st.warning(f"⚠️ قاطع الدائرة مفعل: سيتم إيقاف التداول أوتوماتيكياً إذا تجاوزت الخسائر اليومية حد {max_daily_drawdown}%.")
+        st.warning(f"⚠️ قاطع الدائرة مفعل [{env_clean}]: سيتم إيقاف التداول أوتوماتيكياً إذا تجاوزت الخسائر اليومية حد {max_daily_drawdown}%.")
