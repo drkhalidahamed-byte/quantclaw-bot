@@ -5,7 +5,56 @@ import hashlib
 import time
 import requests
 import urllib.parse
+import sqlite3
+from datetime import datetime
 
+# --- Database & Journal Setup ---
+DB_NAME = "quantclaw_journal.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS trades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            symbol TEXT,
+            side TEXT,
+            entry_price REAL,
+            size REAL,
+            pnl REAL,
+            status TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def log_trade_to_db(symbol, side, entry_price, size, status="Active"):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO trades (timestamp, symbol, side, entry_price, size, pnl, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), symbol, side, entry_price, size, 0.0, status))
+    conn.commit()
+    conn.close()
+
+def get_trades_from_db():
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql_query("SELECT * FROM trades", conn)
+    conn.close()
+    return df
+
+def clear_trades_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM trades")
+    conn.commit()
+    conn.close()
+
+# --- Technical Indicators & AI Engine ---
 def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     if df.empty or len(df) < max(ema_period, rsi_period, atr_period, 20):
         return df
@@ -42,7 +91,7 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     df['vol_sma20'] = df['volume'].rolling(20).mean()
     df['vol_spike'] = df['volume'] > (df['vol_sma20'] * 2.0)
 
-    # AI / ML Trend Score Simulation (Momentum Confluence Probability)
+    # AI Trend Score
     df['ai_score'] = 50.0
     df.loc[df['close'] > df['ema'], 'ai_score'] += 15.0
     df.loc[df['rsi'] > 50, 'ai_score'] += 15.0
@@ -67,8 +116,6 @@ def execute_binance_order(api_key, api_secret, symbol, side, quantity, testnet=T
         clean_symbol = "BTCUSDT"
     elif "ETH" in clean_symbol and not clean_symbol.endswith("USDT"):
         clean_symbol = "ETHUSDT"
-    elif "SOL" in clean_symbol and not clean_symbol.endswith("USDT"):
-        clean_symbol = "SOLUSDT"
 
     params = {
         "symbol": clean_symbol,
@@ -81,7 +128,6 @@ def execute_binance_order(api_key, api_secret, symbol, side, quantity, testnet=T
     query_string = urllib.parse.urlencode(params)
     signature = hmac.new(api_secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
     params["signature"] = signature
-    
     headers = {"X-MBX-APIKEY": api_key}
     
     try:

@@ -5,15 +5,15 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests
-from trading_engine import calculate_indicators, calculate_position_size, execute_binance_order
+from trading_engine import (
+    calculate_indicators, calculate_position_size, execute_binance_order,
+    log_trade_to_db, get_trades_from_db, clear_trades_db
+)
 
-st.set_page_config(page_title="QuantClaw Institutional Console", layout="wide", initial_sidebar_state="expanded")
-
-if "active_trades" not in st.session_state:
-    st.session_state.active_trades = []
+st.set_page_config(page_title="QuantClaw Enterprise Console", layout="wide", initial_sidebar_state="expanded")
 
 # --- Sidebar Controls ---
-st.sidebar.title("⚡ QuantClaw Institutional")
+st.sidebar.title("⚡ QuantClaw Enterprise")
 market_type = st.sidebar.radio("السوق:", ["العملات الرقمية (Crypto)", "الأسهم الأمريكية & ETFs"])
 
 crypto_symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
@@ -78,157 +78,120 @@ def fetch_data(symbol, interval):
 df = fetch_data(selected_symbol, timeframe)
 
 # Tabs Navigation
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📈 الشارت التفاعلي والذكاء الاصطناعي",
-    "🤖 التنفيذ الآلي والحقيقي (API)",
-    "🗺️ خريطة الحرارة والماسح الشامل", 
-    "📊 تقاطع الأطر الزمنية المتعددة",
-    "📊 محاكي الاستراتيجية (Backtest)",
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "📈 الشارت التفاعلي",
+    "🤖 مساعد الذكاء الاصطناعي (AI Chat)",
+    "🚀 التنفيذ الآلي والـ API",
+    "🗺️ خريطة الحرارة والماسح", 
+    "📊 تقاطع الأطر الزمنية",
+    "📒 سجل الأداء والمحافظ (SQLite)",
     "🛡️ إدارة المخاطر المؤسسية"
 ])
 
-# --- TAB 1: ADVANCED CHART & AI SCORE ---
+# --- TAB 1: ADVANCED CHART ---
 with tab1:
-    st.header(f"📈 الشارت التفاعلي وتحليل الذكاء الاصطناعي - {selected_symbol}")
+    st.header(f"📈 التحليل الفني المتقدم - {selected_symbol}")
     if not df.empty and len(df) > 5:
         ai_prob = df['ai_score'].iloc[-1]
-        col_ai1, col_ai2, col_ai3 = st.columns(3)
-        col_ai1.metric("مؤشر ثقة الذكاء الاصطناعي (AI Confidence)", f"{ai_prob:.1f}%", "Bullish Bias" if ai_prob > 50 else "Bearish Bias")
-        col_ai2.metric("السعر الحالي", f"${df['close'].iloc[-1]:,.2f}")
-        col_ai3.metric("مستوى الـ RSI", f"{df['rsi'].iloc[-1]:.1f}")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("مؤشر الثقة الذكي (AI Score)", f"{ai_prob:.1f}%")
+        c2.metric("السعر الحالي", f"${df['close'].iloc[-1]:,.2f}")
+        c3.metric("RSI Momentum", f"{df['rsi'].iloc[-1]:.1f}")
 
-        fig = make_subplots(
-            rows=3, cols=1, 
-            shared_xaxes=True, 
-            vertical_spacing=0.04, 
-            row_heights=[0.6, 0.2, 0.2],
-            subplot_titles=(f"OHLC, EMA, VWAP & AI Overlay ({selected_symbol})", "MACD Histogram", "RSI Momentum")
-        )
-        
+        fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.6, 0.2, 0.2])
         fig.add_trace(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="OHLC"), row=1, col=1)
         if 'ema' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['ema'], line=dict(color='#2962FF', width=1.5), name=f"EMA {ema_period}"), row=1, col=1)
         if 'vwap' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['vwap'], line=dict(color='#E91E63', width=1.5, dash='dash'), name="VWAP"), row=1, col=1)
-            
-        if 'upper_band' in df.columns and 'lower_band' in df.columns:
-            fig.add_trace(go.Scatter(x=df.index, y=df['upper_band'], line=dict(color='rgba(255,255,255,0.2)', width=1), name="Upper BB"), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df.index, y=df['lower_band'], line=dict(color='rgba(255,255,255,0.2)', width=1), name="Lower BB"), row=1, col=1)
-        
         if 'macd_hist' in df.columns:
             colors = ['#00E676' if val >= 0 else '#FF5252' for val in df['macd_hist'].fillna(0)]
             fig.add_trace(go.Bar(x=df.index, y=df['macd_hist'], marker_color=colors, name="MACD Hist"), row=2, col=1)
-        
         if 'rsi' in df.columns:
             fig.add_trace(go.Scatter(x=df.index, y=df['rsi'], line=dict(color='#FF9800', width=1.5), name="RSI"), row=3, col=1)
-            fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
-            fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
         
         fig.update_layout(template="plotly_dark", height=700, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: LIVE & TESTNET API EXECUTION ---
+# --- TAB 2: AI TRADING ASSISTANT ---
 with tab2:
-    st.header("🤖 محرك التشغيل الآلي والتنفيذ الفعلي عبر API")
-    col_e1, col_e2 = st.columns(2)
-    with col_e1:
-        st.subheader("🔑 إعدادات ربط الحساب (Binance API)")
-        api_key_input = st.text_input("API Key", type="password")
-        api_secret_input = st.text_input("API Secret", type="password")
-        execution_target = st.radio("بيئة التنفيذ:", ["محاكاة ورقية محلية (Paper Trading)", "تداول حقيقي تجريبي (Binance Testnet)"])
+    st.header("🤖 مساعد التداول الذكي (AI Analyst)")
+    st.write("اسأل مساعد الذكاء الاصطناعي عن وضع الأصل الحالي أو اطلب تقييماً للإشارة الفنية:")
+    
+    user_query = st.text_input("أدخل سؤالك هنا (مثلاً: ما هو تقييمك لحالة السعر الحالية؟)")
+    if user_query and not df.empty:
+        last_close = df['close'].iloc[-1]
+        last_rsi = df['rsi'].iloc[-1]
+        last_ai = df['ai_score'].iloc[-1]
         
-    with col_e2:
-        st.subheader("⚡ لوحة تنفيذ الصفقات الفورية")
-        trade_amount_usd = st.number_input("قيمة الصفقة ($)", value=100.0, step=10.0)
-        
-        if not df.empty:
-            last_p = df['close'].iloc[-1]
-            if st.button("🚀 إرسال أمر شراء فوري (Market Buy)"):
-                if "Testnet" in execution_target and api_key_input and api_secret_input:
-                    qty = trade_amount_usd / last_p
-                    res = execute_binance_order(api_key_input, api_secret_input, selected_symbol, "BUY", qty, testnet=True)
-                    st.json(res)
-                else:
-                    st.session_state.active_trades.append({
-                        "Symbol": selected_symbol,
-                        "Type": "BUY",
-                        "Entry": last_p,
-                        "Size": trade_amount_usd,
-                        "Status": "Active Paper"
-                    })
-                    st.success(f"تم تنفيذ صفقة ورقية على {selected_symbol} بسعر ${last_p:,.2f}")
-                    send_telegram_alert(f"🛒 صفقة جديدة: BUY {selected_symbol} @ ${last_p:,.2f}")
+        st.markdown("### 💡 تقرير الذكاء الاصطناعي:")
+        if last_ai > 60:
+            st.success(f"الوضع الحالي لـ {selected_symbol} **إيجابي (Bullish)**. مؤشر الثقة عند `{last_ai:.1f}%`، وقيمة الـ RSI تسجل `{last_rsi:.1f}`. الزخم العام يدعم الشراء مع متابعة خط الـ VWAP.")
+        elif last_ai < 40:
+            st.warning(f"الوضع الحالي لـ {selected_symbol} **سلبي أو هابط (Bearish)**. مؤشر الثقة منخفض عند `{last_ai:.1f}%`، والزخم يشير لضغوط بيعية.")
+        else:
+            st.info(f"السوق في حالة **حيادية (Neutral)** لـ {selected_symbol}. يفضل الانتظار حتى كسر المستويات العرضية.")
 
-    st.markdown("---")
-    st.subheader("📋 الصفقات النشطة المسجلة")
-    if st.session_state.active_trades:
-        st.dataframe(pd.DataFrame(st.session_state.active_trades), use_container_width=True)
-        if st.button("🗑️ مسح السجل"):
-            st.session_state.active_trades = []
+# --- TAB 3: EXECUTION & API ---
+with tab3:
+    st.header("🚀 التنفيذ الآلي والربط الحقيقي (API)")
+    c_e1, c_e2 = st.columns(2)
+    with c_e1:
+        api_k = st.text_input("API Key", type="password")
+        api_s = st.text_input("API Secret", type="password")
+        mode = st.radio("البيئة:", ["محاكاة محلية", "Binance Testnet"])
+    with c_e2:
+        amt = st.number_input("مبلغ الصفقة ($)", value=100.0)
+        if not df.empty:
+            lp = df['close'].iloc[-1]
+            if st.button("🛒 تنفيذ شراء وإرسال لسجل SQLite"):
+                log_trade_to_db(selected_symbol, "BUY", lp, amt, "Active")
+                st.success("تم تنفيذ الصفقة وحفظها في قاعدة البيانات المحلية بنجاح!")
+                send_telegram_alert(f"🛒 صفقة ناجحة على {selected_symbol} بسعر ${lp:,.2f}")
+
+# --- TAB 4: HEATMAP & SCANNER ---
+with tab4:
+    st.header("🗺️ خريطة الحرارة والماسح الفوري")
+    all_syms = crypto_symbols + stock_symbols
+    h_data = []
+    for s in all_syms:
+        t_df = fetch_data(s, "1h")
+        if not t_df.empty and len(t_df) > 1:
+            p_n = t_df['close'].iloc[-1]
+            p_p = t_df['close'].iloc[-2]
+            chg = ((p_n - p_p) / p_p) * 100
+            h_data.append({"Symbol": s, "Price": f"${p_n:,.2f}", "Change %": f"{chg:+.2f}%"})
+    if h_data:
+        st.dataframe(pd.DataFrame(h_data), use_container_width=True)
+
+# --- TAB 5: MULTI-TIMEFRAME ---
+with tab5:
+    st.header("📊 تقاطع الأطر الزمنية")
+    for tf in ["15m", "1h", "4h"]:
+        sub = fetch_data(selected_symbol, tf)
+        if not sub.empty:
+            st.write(f"**الإطار الزمني {tf}:** السعر = `${sub['close'].iloc[-1]:,.2f}` | RSI = `{sub['rsi'].iloc[-1]:.1f}`")
+
+# --- TAB 6: SQLITE TRADE JOURNAL ---
+with tab6:
+    st.header("📒 سجل الأداء والمحافظ (SQLite Database)")
+    trades_df = get_trades_from_db()
+    if not trades_df.empty:
+        st.dataframe(trades_df, use_container_width=True)
+        if st.button("🗑️ تفريغ كافة السجلات"):
+            clear_trades_db()
             st.rerun()
     else:
-        st.info("لا توجد صفقات نشطة مسجلة.")
+        st.info("لا توجد سجلات صفقات في قاعدة البيانات حتى الآن.")
 
-# --- TAB 3: HEATMAP & SCANNER ---
-with tab3:
-    st.header("🗺️ خريطة حرارة السوق والماسح الشامل")
-    all_market_symbols = crypto_symbols + stock_symbols
-    heat_data = []
-    for sym in all_market_symbols:
-        t_df = fetch_data(sym, "1h")
-        if not t_df.empty and len(t_df) > 2:
-            p_now = t_df['close'].iloc[-1]
-            p_prev = t_df['close'].iloc[-2]
-            pct_change = ((p_now - p_prev) / p_prev) * 100
-            rsi_val = t_df['rsi'].iloc[-1] if 'rsi' in t_df.columns else 50
-            ai_s = t_df['ai_score'].iloc[-1] if 'ai_score' in t_df.columns else 50
-            heat_data.append({"Symbol": sym, "Price": f"${p_now:,.2f}", "Change %": f"{pct_change:+.2f}%", "RSI": f"{rsi_val:.1f}", "AI Score": f"{ai_s:.1f}%"})
-    
-    if heat_data:
-        h_df = pd.DataFrame(heat_data)
-        st.dataframe(h_df, use_container_width=True)
-        st.download_button("📥 تصدير تقرير السوق", data=h_df.to_csv(index=False), file_name="market_heatmap.csv", mime="text/csv")
-
-# --- TAB 4: MULTI-TIMEFRAME CONFLUENCE ---
-with tab4:
-    st.header("📊 تقاطع المؤشرات عبر الأطر الزمنية المتعددة (Multi-Timeframe)")
-    tf_list = ["15m", "1h", "4h"]
-    confluence_results = []
-    for tf in tf_list:
-        sub_df = fetch_data(selected_symbol, tf)
-        if not sub_df.empty:
-            lp = sub_df['close'].iloc[-1]
-            lem = sub_df['ema'].iloc[-1] if 'ema' in sub_df.columns else lp
-            lrsi = sub_df['rsi'].iloc[-1] if 'rsi' in sub_df.columns else 50
-            trend = "🟢 Bullish" if lp > lem and lrsi > 50 else "🔴 Bearish"
-            confluence_results.append({"Timeframe": tf, "Price": f"${lp:,.2f}", "RSI": f"{lrsi:.1f}", "Trend State": trend})
-            
-    if confluence_results:
-        st.dataframe(pd.DataFrame(confluence_results), use_container_width=True)
-
-# --- TAB 5: BACKTEST ---
-with tab5:
-    st.header("📊 محاكي الاستراتيجيات المتقدم (Backtest)")
-    if not df.empty and 'ema' in df.columns and 'macd_hist' in df.columns:
-        bt_df = df.copy()
-        bt_df['signal'] = np.where((bt_df['close'] > bt_df['ema']) & (bt_df['macd_hist'] > 0), 1, -1)
-        bt_df['returns'] = bt_df['close'].pct_change() * bt_df['signal'].shift(1)
-        bt_df['cum_returns'] = (1 + bt_df['returns'].fillna(0)).cumprod()
-        st.line_chart(bt_df['cum_returns'])
-
-# --- TAB 6: RISK ENGINE ---
-with tab6:
-    st.header("🛡️ حاسبة المخاطر المؤسسية وأهداف الأرباح")
+# --- TAB 7: RISK ENGINE ---
+with tab7:
+    st.header("🛡️ حاسبة المخاطر المؤسسية")
     acc = st.number_input("رأس المال ($)", value=10000.0)
-    risk = st.slider("نسبة المخاطرة لكل صفقة (%)", 0.5, 5.0, 1.0)
+    risk = st.slider("المخاطرة (%)", 0.5, 5.0, 1.0)
     if not df.empty and 'atr' in df.columns:
         cp = df['close'].iloc[-1]
         sl = cp - (df['atr'].iloc[-1] * atr_multiplier)
         tp = cp + ((cp - sl) * risk_reward_ratio)
         units = calculate_position_size(acc, risk, cp, sl)
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("سعر الدخول", f"${cp:,.2f}")
-        c2.metric("وقف الخسارة (SL)", f"${sl:,.2f}")
-        c3.metric("هدف الربح (TP)", f"${tp:,.2f}")
-        st.metric("الكمية الموصى بها (Units)", f"{units:.4f}")
+        st.metric("الكمية الموصى بها", f"{units:.4f}")
