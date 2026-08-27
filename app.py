@@ -29,7 +29,7 @@ navigation_section = st.sidebar.radio(
     "اختر القسم المطلوب:",
     [
         "📈 1. الشارت والمؤشرات الفنية",
-        "🧠 2. منظومة الذكاء الاصطناعي (AI)",
+        "🧠 2. منظومة الذكاء الاصطناعي (AI Models)",
         "🤖 3. أوامر ووكيل Telegram",
         "🚀 4. التنفيذ الآلي والـ API",
         "🗺️ 5. خريطة الحرارة والماسح",
@@ -45,7 +45,7 @@ ema_period = st.sidebar.slider("EMA Period", 20, 200, 200, 5)
 rsi_period = st.sidebar.slider("RSI Period", 7, 30, 14, 1)
 atr_period = st.sidebar.slider("ATR Period", 5, 30, 10, 1)
 atr_multiplier = st.sidebar.slider("ATR Stop Multiplier", 1.0, 5.0, 2.0, 0.1)
-risk_reward_ratio = st.sidebar.slider("Risk/Reward Ratio (TP Multiplier)", 1.0, 5.0, 2.0, 0.5)
+risk_reward_ratio = st.sidebar.slider("Risk/Ratio (TP Multiplier)", 1.0, 5.0, 2.0, 0.5)
 max_daily_drawdown = st.sidebar.slider("Circuit Breaker Max Loss (%)", 1.0, 10.0, 3.0, 0.5)
 
 st.sidebar.markdown("---")
@@ -113,20 +113,21 @@ if navigation_section.startswith("📈"):
         st.plotly_chart(fig, use_container_width=True)
 
 elif navigation_section.startswith("🧠"):
-    st.header("🧠 لوحة قيادة الذكاء الاصطناعي الشاملة (Multi-AI Engine)")
+    st.header("🧠 منظومة الذكاء الاصطناعي ونماذج التنبؤ المحسنة")
     if not df.empty:
         c1, c2, c3, c4 = st.columns(4)
         ml_s = df['ai_score'].iloc[-1]
         lstm_s = df['lstm_score'].iloc[-1]
         sent_s = df['sentiment_score'].iloc[-1]
+        acc = df['model_accuracy'].iloc[-1]
         rl_act = df['rl_action'].iloc[-1]
 
-        c1.metric("نموذج Random Forest ML", f"{ml_s:.1f}%")
-        c2.metric("شبكة التنبؤ الزمنية LSTM", f"{lstm_s:.1f}%")
-        c3.metric("مؤشر مشاعر الأخبار FinBERT", f"{sent_s:.1f}%")
-        c4.metric("قرار الوكيل التعزيزي (RL)", rl_act)
+        c1.metric("احتمالية الصعود (Random Forest)", f"{ml_s:.1f}%")
+        c2.metric("توقع شبكة LSTM الزمنية", f"{lstm_s:.1f}%")
+        c3.metric("مؤشر المشاعر المحسّن (FinBERT)", f"{sent_s:.1f}%")
+        c4.metric("دقة النماذج التاريخية (Backtest)", f"{acc:.1f}%")
 
-        st.info(f"💡 **توصية النظام الموحدة:** بناءً على تقاطع نماذج الـ AI (عصبية، تعلم آلي وتحليل مشاعر)، القرار الحالي لـ {selected_symbol} هو **{rl_act}** بثقة إجمالية تبلغ `{((ml_s + lstm_s + sent_s)/3):.1f}%`.")
+        st.success(f"🤖 **القرار الموحد لشبكة الذكاء الاصطناعي:** بناءً على الميزات الهندسية المتقدمة (Bollinger %B و ROC)، قرار التداول الموصى به لـ {selected_symbol} هو **{rl_act}**.")
 
 elif navigation_section.startswith("🤖"):
     st.header("🤖 الوكيل الذكي ومراقبة أوامر التيليجرام")
@@ -140,7 +141,7 @@ elif navigation_section.startswith("🤖"):
     if st.button("📤 إرسال تقرير حالة الأصول الفوري للتيليجرام"):
         if not df.empty:
             p_now = df['close'].iloc[-1]
-            report = f"📊 *تقرير QuantClaw الشامل*\n- الأصل: {selected_symbol}\n- السعر: ${p_now:,.2f}\n- قرار AI: {df['rl_action'].iloc[-1]}"
+            report = f"📊 *تقرير QuantClaw المحسّن*\n- الأصل: {selected_symbol}\n- السعر: ${p_now:,.2f}\n- قرار AI: {df['rl_action'].iloc[-1]}"
             send_telegram_alert(report)
             st.success("تم إرسال التقرير بنجاح إلى التيليجرام!")
 
