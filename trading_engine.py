@@ -2,7 +2,7 @@
 import numpy as np
 
 def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
-    if df.empty:
+    if df.empty or len(df) < max(ema_period, rsi_period, atr_period, 20):
         return df
 
     # Exponential Moving Average (EMA)
@@ -39,6 +39,10 @@ def calculate_indicators(df, ema_period=200, rsi_period=14, atr_period=10):
     # Volume Weighted Average Price (VWAP)
     typical_price = (df['high'] + df['low'] + df['close']) / 3
     df['vwap'] = (typical_price * df['volume']).cumsum() / (df['volume'].cumsum() + 1e-9)
+
+    # Volume Spike Detection (Volume > 2x of 20-period moving average volume)
+    df['vol_sma20'] = df['volume'].rolling(20).mean()
+    df['vol_spike'] = df['volume'] > (df['vol_sma20'] * 2.0)
 
     # Williams Fractals
     df['fractal_high'] = np.nan
