@@ -6,17 +6,13 @@ import datetime
 
 def calculate_indicators(df, ema_per=200, rsi_per=14, atr_per=10):
     try:
-        # EMA
         df['ema'] = df['close'].ewm(span=ema_per, adjust=False).mean()
-        
-        # RSI
         delta = df['close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=rsi_per).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=rsi_per).mean()
         rs = gain / (loss + 1e-10)
         df['rsi'] = 100 - (100 / (1 + rs))
         
-        # ATR
         high_low = df['high'] - df['low']
         high_close = np.abs(df['high'] - df['close'].shift())
         low_close = np.abs(df['low'] - df['close'].shift())
@@ -24,26 +20,22 @@ def calculate_indicators(df, ema_per=200, rsi_per=14, atr_per=10):
         true_range = ranges.max(axis=1)
         df['atr'] = true_range.rolling(window=atr_per).mean()
 
-        # Bollinger Bands (مؤشر جديد)
         df['bb_middle'] = df['close'].rolling(window=20).mean()
         bb_std = df['close'].rolling(window=20).std()
         df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
         df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
 
-        # Supertrend (مؤشر جديد)
         hl2 = (df['high'] + df['low']) / 2
         df['supertrend_upper'] = hl2 + (3.0 * df['atr'])
         df['supertrend_lower'] = hl2 - (3.0 * df['atr'])
         df['supertrend'] = np.where(df['close'] > df['supertrend_lower'], 1, -1)
 
-        # AI & Model Scores (تحسين الذكاء الاصطناعي)
         np.random.seed(42)
         df['ai_score'] = np.random.uniform(45.0, 95.0, len(df))
         df['lstm_score'] = np.random.uniform(40.0, 90.0, len(df))
         df['sentiment_score'] = np.random.uniform(50.0, 92.0, len(df))
         df['model_accuracy'] = 88.5
         
-        # Actions
         df['rl_action'] = np.where(df['close'] > df['ema'], 'BUY', 'SELL')
         return df
     except Exception as e:
@@ -56,7 +48,6 @@ def run_institutional_backtest(df, initial_capital=10000.0):
         df['strategy_returns'] = df['returns'] * np.where(df['rl_action'] == 'BUY', 1, -1)
         equity = initial_capital * (1 + df['strategy_returns'].fillna(0)).cumprod()
         
-        total_ret = (equity.iloc[-1] - initial_capital) / initial_capital
         sharpe = np.sqrt(252) * (df['strategy_returns'].mean() / (df['strategy_returns'].std() + 1e-10))
         sortino_downside = df['strategy_returns'][df['strategy_returns'] < 0]
         sortino = np.sqrt(252) * (df['strategy_returns'].mean() / (sortino_downside.std() + 1e-10))
@@ -66,7 +57,7 @@ def run_institutional_backtest(df, initial_capital=10000.0):
         max_dd = drawdown.min() * 100
         
         winning_trades = df['strategy_returns'][df['strategy_returns'] > 0]
-losing_trades = df['strategy_returns'][df['strategy_returns'] < 0]
+        losing_trades = df['strategy_returns'][df['strategy_returns'] < 0]
         profit_factor = abs(winning_trades.sum() / (losing_trades.sum() + 1e-10))
         win_rate = (len(winning_trades) / (len(winning_trades) + len(losing_trades) + 1e-10)) * 100
 
