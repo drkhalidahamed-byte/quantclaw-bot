@@ -16,7 +16,6 @@ st.set_page_config(page_title="QuantClaw Hedge Fund Pro Terminal", layout="wide"
 
 st.sidebar.title("⚡ QuantClaw Ultimate Pro")
 
-# --- زر التبديل بين الوضع الليلي والوضع العادي (Theme Switcher) ---
 theme_mode = st.sidebar.radio("🎨 وضع العرض (Theme)", ["الوضع الليلي (Dark Mode)", "الوضع الفاتح (Light Mode)"], index=0)
 
 if theme_mode == "الوضع الليلي (Dark Mode)":
@@ -54,7 +53,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- اختيار بيئة التشغيل ---
 st.sidebar.subheader("🌍 بيئة التشغيل (Execution Environment)")
 trading_env = st.sidebar.selectbox(
     "اختر البيئة:",
@@ -124,8 +122,6 @@ def fetch_data(symbol, interval):
         return pd.DataFrame()
 
 df = fetch_data(selected_symbol, timeframe)
-
-# --- Render Sections (9 Tabs) ---
 
 if navigation_section.startswith("📈"):
     st.header(f"📈 Bloomberg Terminal / TradingView Pro - {selected_symbol} [{env_clean}]")
