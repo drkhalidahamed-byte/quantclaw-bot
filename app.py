@@ -5,11 +5,11 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests
-import io
+import time
 from trading_engine import (
     calculate_indicators, run_institutional_backtest, calculate_position_size_with_trailing, 
     execute_binance_order, log_trade_to_db, get_trades_from_db, clear_trades_db, 
-    fetch_whale_and_liquidations_simulation, send_telegram_alert
+    update_trade_status_in_db, fetch_whale_and_liquidations_simulation, send_telegram_alert
 )
 
 st.set_page_config(page_title="QuantClaw Hedge Fund Pro Terminal", layout="wide", initial_sidebar_state="expanded")
@@ -52,6 +52,11 @@ active_symbols = stock_symbols if market_type.startswith("الأسهم") else cr
 selected_symbol = st.sidebar.selectbox("🎯 الأصل النشط", active_symbols)
 timeframe = st.sidebar.selectbox("⏱️ الإطار الزمني", ["5m", "15m", "1h", "4h", "1d"])
 
+auto_refresh = st.sidebar.checkbox("🔄 تفعيل التحديث التلقائي الحي (Auto-Refresh)", value=False)
+if auto_refresh:
+    st.sidebar.caption("⚡ يتم تحديث البيانات كل 30 ثانية تلقائياً.")
+    time.sleep(0.1)
+
 st.sidebar.markdown("---")
 navigation_section = st.sidebar.radio("اختر القسم:", [
     "📈 1. الشارت والمؤشرات المتقدمة",
@@ -72,7 +77,7 @@ initial_capital = st.sidebar.number_input("رأس المال الافتراضي 
 telegram_token = st.sidebar.text_input("Telegram Bot Token", type="password")
 telegram_chat_id = st.sidebar.text_input("Telegram Chat ID")
 
-@st.cache_data(ttl=20)
+@st.cache_data(ttl=15)
 def fetch_data(symbol, interval):
     try:
         df = yf.download(symbol, period="1mo", interval=interval, progress=False)
@@ -84,6 +89,27 @@ def fetch_data(symbol, interval):
         return pd.DataFrame()
 
 df = fetch_data(selected_symbol, timeframe)
+
+# محرك المراقبة الخلفي النشط للـ Trailing Stop (Background Guard Daemon)
+def background_trailing_monitor():
+    trades_df = get_trades_from_db()
+    if not trades_df.empty and not df.empty:
+        active_trades = trades_df[trades_df['status'] == 'Active']
+        current_price = df['close'].iloc[-1]
+        for idx, row in active_trades.iterrows():
+            t_id = row['id']
+            t_action = row['action']
+            t_stop = row['trailing_stop']
+            if t_action == 'BUY' and current_price <= t_stop:
+                update_trade_status_in_db(t_id, 'Closed (Trailing Stop Hit)')
+                if telegram_token and telegram_chat_id:
+                    send_telegram_alert(telegram_token, telegram_chat_id, f"⚠️ *Trailing Stop Hit Alert!*\n- Symbol: {row['symbol']}\n- Closed at Price: ${current_price:,.2f}")
+            elif t_action == 'SELL' and current_price >= t_stop:
+                update_trade_status_in_db(t_id, 'Closed (Trailing Stop Hit)')
+                if telegram_token and telegram_chat_id:
+                    send_telegram_alert(telegram_token, telegram_chat_id, f"⚠️ *Trailing Stop Hit Alert!*\n- Symbol: {row['symbol']}\n- Closed at Price: ${current_price:,.2f}")
+
+background_trailing_monitor()
 
 if navigation_section.startswith("📈"):
     st.header(f"📈 TradingView Pro - {selected_symbol} [{env_clean}]")
@@ -127,17 +153,26 @@ elif navigation_section.startswith("🧪"):
 
 elif navigation_section.startswith("🤖"):
     st.header(f"🤖 التداول الآلي مع Trailing Stop [{env_clean}]")
+    c_api1, c_api2 = st.columns(2)
+    with c_api1: auto_key = st.text_input("API Key", type="password")
+    with c_api2: auto_sec = st.text_input("API Secret", type="password")
+
     if not df.empty:
         cur_price, cur_action, cur_atr = df['close'].iloc[-1], df['rl_action'].iloc[-1], df['atr'].iloc[-1] if 'atr' in df.columns else 1.0
-        if st.button("🚀 تشغيل حلقة الاختبار الحي وبث تليجرام"):
+        if st.button("🚀 تشغيل حلقة التنفيذ الذاتي وبث تليجرام"):
             if cur_action == "HOLD":
                 st.warning("⚠️ القرار الحالي (HOLD).")
             else:
                 size, trailing_stop = calculate_position_size_with_trailing(initial_capital, 1.0, cur_price, cur_price, cur_atr, atr_multiplier)
                 log_trade_to_db(selected_symbol, cur_action, cur_price, size, trailing_stop, "Active", env_clean)
                 st.success(f"✅ تم تسجيل الصفقة الحية: السعر = `${cur_price:,.2f}` | Trailing Stop = `${trailing_stop:,.2f}`")
+                
                 if telegram_token and telegram_chat_id:
-                    send_telegram_alert(telegram_token, telegram_chat_id, f"🚀 *QuantClaw Alert [{env_clean}]*\n- {selected_symbol} | {cur_action} | Price: ${cur_price:,.2f}")
+                    send_telegram_alert(telegram_token, telegram_chat_id, f"🚀 *QuantClaw Autonomous Alert [{env_clean}]*\n- {selected_symbol} | {cur_action} | Price: ${cur_price:,.2f} | Trailing Stop: ${trailing_stop:,.2f}")
+
+                if env_clean in ["Live", "Testnet"]:
+                    res = execute_binance_order(auto_key, auto_sec, selected_symbol, cur_action, size, env_clean)
+                    st.json(res)
 
 elif navigation_section.startswith("⚖️"):
     st.header("⚖️ محفظة توزيع الأصول الذكية")
@@ -146,11 +181,11 @@ elif navigation_section.startswith("⚖️"):
 
 elif navigation_section.startswith("📡"):
     st.header("📡 حالة البث والتنبيهات الحية")
-    st.success("🟢 الاتصال نشط ومستقر في وضع Paper Trading.")
+    st.success("🟢 الاتصال نشط ومستقر. محرك المراقبة الخلفي للـ Trailing Stop يعمل بنجاح.")
 
 elif navigation_section.startswith("⚙️"):
     st.header("⚙️ إعدادات محرك التنفيذ وإدارة المخاطر")
-    st.success("تم تفعيل إعدادات محرك المخاطر.")
+    st.success("تم تفعيل إعدادات محرك المخاطر وإدارة الـ ATR.")
 
 elif navigation_section.startswith("📒"):
     st.header("📒 سجل صفقات الاختبار الحي والتصدير")

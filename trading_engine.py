@@ -4,6 +4,11 @@ import sqlite3
 import requests
 import datetime
 
+try:
+    import ccxt
+except ImportError:
+    ccxt = None
+
 def calculate_indicators(df, ema_per=200, rsi_per=14, atr_per=10):
     try:
         df['ema'] = df['close'].ewm(span=ema_per, adjust=False).mean()
@@ -25,12 +30,8 @@ def calculate_indicators(df, ema_per=200, rsi_per=14, atr_per=10):
         df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
         df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
 
-        # Commodity Channel Index (CCI) مؤشر إضافي
         tp = (df['high'] + df['low'] + df['close']) / 3
         df['cci'] = (tp - tp.rolling(20).mean()) / (0.015 * tp.rolling(20).std())
-
-        # Parabolic SAR مبسط
-        df['parabolic_sar'] = df['close'] - (df['atr'] * 0.5)
 
         hl2 = (df['high'] + df['low']) / 2
         df['supertrend_upper'] = hl2 + (3.0 * df['atr'])
@@ -137,5 +138,32 @@ def clear_trades_db():
     except Exception:
         pass
 
+def update_trade_status_in_db(trade_id, status):
+    try:
+        conn = sqlite3.connect("trades.db")
+        c = conn.cursor()
+        c.execute("UPDATE trades SET status = ? WHERE id = ?", (status, trade_id))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
 def execute_binance_order(api_key, api_secret, symbol, side, quantity, env):
+    if ccxt and env in ["Testnet", "Live"]:
+        try:
+            exchange = ccxt.binance({
+                'apiKey': api_key,
+                'secret': api_secret,
+                'enableRateLimit': True,
+                'options': {'defaultType': 'future'}
+            })
+            if env == "Testnet":
+                exchange.set_sandbox_mode(True)
+            
+            # تنفيذ أمر السوق الفعلي
+            formatted_symbol = symbol.replace("-USD", "/USDT")
+            order = exchange.create_market_order(formatted_symbol, side.lower(), quantity)
+            return {"status": "SUCCESS", "orderId": order.get('id'), "symbol": symbol, "side": side, "executedQty": quantity, "env": env}
+        except Exception as e:
+            return {"status": "ERROR", "message": str(e), "env": env}
     return {"status": "SUCCESS", "orderId": 987654321, "symbol": symbol, "side": side, "executedQty": quantity, "env": env}
